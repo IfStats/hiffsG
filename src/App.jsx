@@ -1504,7 +1504,16 @@ export default function App() {
         button:focus-visible { outline: 2px solid ${COLORS.gold}; outline-offset: 2px; }
         ::placeholder { color: ${COLORS.mute}; opacity: 0.8; }
       `}</style>
-      <Nav tab={tab} setTab={setTab} banner={banner} />
+      <Nav
+        tab={tab}
+        setTab={setTab}
+        banner={
+          banner ||
+          (!storage.isConfigured
+            ? { text: "Supabase isn't configured yet — set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY, then redeploy. Nothing will save until then.", type: "error" }
+            : null)
+        }
+      />
       {loading ? (
         <div style={{ color: COLORS.paper, textAlign: "center", padding: 80, fontFamily: "'Inter', sans-serif" }}>Loading Dictaz…</div>
       ) : (
