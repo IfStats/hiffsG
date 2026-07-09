@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
-import { storage } from "./lib/storage.js";
+import { db } from "./lib/db.js";
 
 /* ---------------------------------------------------------
    DICTAZ — event ticketing, simplified.
@@ -1316,109 +1316,76 @@ export default function App() {
     setBanner({ text, type });
     setTimeout(() => setBanner(null), 2600);
   };
+  const fail = (err) => {
+    // eslint-disable-next-line no-console
+    console.error(err);
+    flash("Couldn't save — try again.", "error");
+  };
 
   useEffect(() => {
     (async () => {
-      const load = async (key) => {
+      const safely = async (fn) => {
         try {
-          const r = await storage.get(key, true);
-          return r ? JSON.parse(r.value) : [];
-        } catch {
+          return await fn();
+        } catch (err) {
+          // eslint-disable-next-line no-console
+          console.error(err);
           return [];
         }
       };
-      setEvents(await load("dictaz-events"));
-      setTickets(await load("dictaz-tickets"));
-      setTasks(await load("dictaz-tasks"));
-      setBudgetItems(await load("dictaz-budget"));
-      setVendors(await load("dictaz-vendors"));
-      setTimeline(await load("dictaz-timeline"));
-      setSubmissions(await load("dictaz-submissions"));
+      setEvents(await safely(db.events.list));
+      setTickets(await safely(db.tickets.list));
+      setTasks(await safely(db.tasks.list));
+      setBudgetItems(await safely(db.budget.list));
+      setVendors(await safely(db.vendors.list));
+      setTimeline(await safely(db.timeline.list));
+      setSubmissions(await safely(db.submissions.list));
       setLoading(false);
     })();
   }, []);
 
-  const persistEvents = useCallback(async (next) => {
-    setEvents(next);
+  const handleCreate = async (ev) => {
     try {
-      await storage.set("dictaz-events", JSON.stringify(next), true);
-    } catch {
-      flash("Couldn't save — try again.", "error");
+      await db.events.create(ev);
+      setEvents([ev, ...events]);
+      flash(`"${ev.name}" is live on Browse.`);
+    } catch (err) {
+      fail(err);
     }
-  }, []);
-
-  const persistTickets = useCallback(async (next) => {
-    setTickets(next);
-    try {
-      await storage.set("dictaz-tickets", JSON.stringify(next), true);
-    } catch {
-      flash("Couldn't save — try again.", "error");
-    }
-  }, []);
-
-  const persistTasks = useCallback(async (next) => {
-    setTasks(next);
-    try {
-      await storage.set("dictaz-tasks", JSON.stringify(next), true);
-    } catch {
-      flash("Couldn't save — try again.", "error");
-    }
-  }, []);
-  const persistBudget = useCallback(async (next) => {
-    setBudgetItems(next);
-    try {
-      await storage.set("dictaz-budget", JSON.stringify(next), true);
-    } catch {
-      flash("Couldn't save — try again.", "error");
-    }
-  }, []);
-  const persistVendors = useCallback(async (next) => {
-    setVendors(next);
-    try {
-      await storage.set("dictaz-vendors", JSON.stringify(next), true);
-    } catch {
-      flash("Couldn't save — try again.", "error");
-    }
-  }, []);
-  const persistTimeline = useCallback(async (next) => {
-    setTimeline(next);
-    try {
-      await storage.set("dictaz-timeline", JSON.stringify(next), true);
-    } catch {
-      flash("Couldn't save — try again.", "error");
-    }
-  }, []);
-  const persistSubmissions = useCallback(async (next) => {
-    setSubmissions(next);
-    try {
-      await storage.set("dictaz-submissions", JSON.stringify(next), true);
-    } catch {
-      flash("Couldn't save — try again.", "error");
-    }
-  }, []);
-
-  const handleCreate = (ev) => {
-    persistEvents([ev, ...events]);
-    flash(`"${ev.name}" is live on Browse.`);
   };
-  const handleDelete = (id) => {
-    persistEvents(events.filter((e) => e.id !== id));
-    persistTickets(tickets.filter((t) => t.eventId !== id));
-    persistTasks(tasks.filter((t) => t.eventId !== id));
-    persistBudget(budgetItems.filter((b) => b.eventId !== id));
-    persistVendors(vendors.filter((v) => v.eventId !== id));
-    persistTimeline(timeline.filter((t) => t.eventId !== id));
-    flash("Event removed.");
+  const handleDelete = async (id) => {
+    try {
+      await db.events.remove(id); // cascades tickets/tasks/budget/vendors/timeline in the DB
+      setEvents(events.filter((e) => e.id !== id));
+      setTickets(tickets.filter((t) => t.eventId !== id));
+      setTasks(tasks.filter((t) => t.eventId !== id));
+      setBudgetItems(budgetItems.filter((b) => b.eventId !== id));
+      setVendors(vendors.filter((v) => v.eventId !== id));
+      setTimeline(timeline.filter((t) => t.eventId !== id));
+      flash("Event removed.");
+    } catch (err) {
+      fail(err);
+    }
   };
-  const handlePurchased = (created) => {
-    persistTickets([...tickets, ...created]);
-    flash(`${created.length} ticket${created.length > 1 ? "s" : ""} issued.`);
+  const handlePurchased = async (created) => {
+    try {
+      await db.tickets.createMany(created);
+      setTickets([...tickets, ...created]);
+      flash(`${created.length} ticket${created.length > 1 ? "s" : ""} issued.`);
+    } catch (err) {
+      fail(err);
+    }
   };
-  const handleAddSubmission = (s) => {
-    persistSubmissions([...submissions, s]);
-    flash("Submitted for review.");
+  const handleAddSubmission = async (s) => {
+    try {
+      await db.submissions.create(s);
+      setSubmissions([...submissions, s]);
+      flash("Submitted for review.");
+    } catch (err) {
+      fail(err);
+    }
   };
-  const handleApproveSubmission = (id) => {
+  const handleApproveSubmission = async (id) => {
     const s = submissions.find((x) => x.id === id);
     if (!s) return;
     const newEvent = {
@@ -1431,42 +1398,145 @@ export default function App() {
       price: s.price,
       capacity: s.capacity,
     };
-    persistEvents([newEvent, ...events]);
-    persistSubmissions(submissions.map((x) => (x.id === id ? { ...x, status: "approved" } : x)));
-    flash(`"${s.name}" approved and published.`);
+    try {
+      await db.events.create(newEvent);
+      await db.submissions.setStatus(id, "approved");
+      setEvents([newEvent, ...events]);
+      setSubmissions(submissions.map((x) => (x.id === id ? { ...x, status: "approved" } : x)));
+      flash(`"${s.name}" approved and published.`);
+    } catch (err) {
+      fail(err);
+    }
   };
-  const handleRejectSubmission = (id) => {
-    persistSubmissions(submissions.map((x) => (x.id === id ? { ...x, status: "rejected" } : x)));
-    flash("Submission rejected.");
+  const handleRejectSubmission = async (id) => {
+    try {
+      await db.submissions.setStatus(id, "rejected");
+      setSubmissions(submissions.map((x) => (x.id === id ? { ...x, status: "rejected" } : x)));
+      flash("Submission rejected.");
+    } catch (err) {
+      fail(err);
+    }
   };
-  const handleCheckIn = (ticketId) => {
-    persistTickets(tickets.map((t) => (t.id === ticketId ? { ...t, checkedIn: true, checkedInAt: new Date().toISOString() } : t)));
-    flash("Checked in.");
+  const handleCheckIn = async (ticketId) => {
+    const checkedInAt = new Date().toISOString();
+    try {
+      await db.tickets.setCheckedIn(ticketId, checkedInAt);
+      setTickets(tickets.map((t) => (t.id === ticketId ? { ...t, checkedIn: true, checkedInAt } : t)));
+      flash("Checked in.");
+    } catch (err) {
+      fail(err);
+    }
   };
   const handleReset = async () => {
     if (!window.confirm("Clear all Dictaz events and tickets? This can't be undone.")) return;
-    await persistEvents([]);
-    await persistTickets([]);
-    await persistTasks([]);
-    await persistBudget([]);
-    await persistVendors([]);
-    await persistTimeline([]);
-    await persistSubmissions([]);
-    flash("All data cleared.");
+    try {
+      await db.resetAll();
+      setEvents([]);
+      setTickets([]);
+      setTasks([]);
+      setBudgetItems([]);
+      setVendors([]);
+      setTimeline([]);
+      setSubmissions([]);
+      flash("All data cleared.");
+    } catch (err) {
+      fail(err);
+    }
   };
 
   const plannerHandlers = {
-    addTask: (t) => persistTasks([...tasks, t]),
-    toggleTask: (id) => persistTasks(tasks.map((t) => (t.id === id ? { ...t, done: !t.done } : t))),
-    deleteTask: (id) => persistTasks(tasks.filter((t) => t.id !== id)),
-    addBudget: (b) => persistBudget([...budgetItems, b]),
-    toggleBudgetPaid: (id) => persistBudget(budgetItems.map((b) => (b.id === id ? { ...b, paid: !b.paid } : b))),
-    deleteBudget: (id) => persistBudget(budgetItems.filter((b) => b.id !== id)),
-    addVendor: (v) => persistVendors([...vendors, v]),
-    setVendorStatus: (id, status) => persistVendors(vendors.map((v) => (v.id === id ? { ...v, status } : v))),
-    deleteVendor: (id) => persistVendors(vendors.filter((v) => v.id !== id)),
-    addTimeline: (t) => persistTimeline([...timeline, t]),
-    deleteTimeline: (id) => persistTimeline(timeline.filter((t) => t.id !== id)),
+    addTask: async (t) => {
+      try {
+        await db.tasks.create(t);
+        setTasks([...tasks, t]);
+      } catch (err) {
+        fail(err);
+      }
+    },
+    toggleTask: async (id) => {
+      const t = tasks.find((x) => x.id === id);
+      if (!t) return;
+      try {
+        await db.tasks.setDone(id, !t.done);
+        setTasks(tasks.map((x) => (x.id === id ? { ...x, done: !x.done } : x)));
+      } catch (err) {
+        fail(err);
+      }
+    },
+    deleteTask: async (id) => {
+      try {
+        await db.tasks.remove(id);
+        setTasks(tasks.filter((t) => t.id !== id));
+      } catch (err) {
+        fail(err);
+      }
+    },
+    addBudget: async (b) => {
+      try {
+        await db.budget.create(b);
+        setBudgetItems([...budgetItems, b]);
+      } catch (err) {
+        fail(err);
+      }
+    },
+    toggleBudgetPaid: async (id) => {
+      const b = budgetItems.find((x) => x.id === id);
+      if (!b) return;
+      try {
+        await db.budget.setPaid(id, !b.paid);
+        setBudgetItems(budgetItems.map((x) => (x.id === id ? { ...x, paid: !x.paid } : x)));
+      } catch (err) {
+        fail(err);
+      }
+    },
+    deleteBudget: async (id) => {
+      try {
+        await db.budget.remove(id);
+        setBudgetItems(budgetItems.filter((b) => b.id !== id));
+      } catch (err) {
+        fail(err);
+      }
+    },
+    addVendor: async (v) => {
+      try {
+        await db.vendors.create(v);
+        setVendors([...vendors, v]);
+      } catch (err) {
+        fail(err);
+      }
+    },
+    setVendorStatus: async (id, status) => {
+      try {
+        await db.vendors.setStatus(id, status);
+        setVendors(vendors.map((v) => (v.id === id ? { ...v, status } : v)));
+      } catch (err) {
+        fail(err);
+      }
+    },
+    deleteVendor: async (id) => {
+      try {
+        await db.vendors.remove(id);
+        setVendors(vendors.filter((v) => v.id !== id));
+      } catch (err) {
+        fail(err);
+      }
+    },
+    addTimeline: async (t) => {
+      try {
+        await db.timeline.create(t);
+        setTimeline([...timeline, t]);
+      } catch (err) {
+        fail(err);
+      }
+    },
+    deleteTimeline: async (id) => {
+      try {
+        await db.timeline.remove(id);
+        setTimeline(timeline.filter((t) => t.id !== id));
+      } catch (err) {
+        fail(err);
+      }
+    },
   };
 
   return (
@@ -1497,7 +1567,7 @@ export default function App() {
         setTab={setTab}
         banner={
           banner ||
-          (!storage.isConfigured
+          (!db.isConfigured
             ? { text: "Supabase isn't configured yet — set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY, then redeploy. Nothing will save until then.", type: "error" }
             : null)
         }
