@@ -1170,7 +1170,7 @@ function VendorSignIn({ onSignIn }) {
         <div style={{ padding: "26px 28px" }}>
           <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, color: COLORS.slate, marginBottom: 4 }}>Vendor sign-in</div>
           <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: COLORS.mute, marginBottom: 18 }}>
-            Lightweight identity for this demo — no password, just your name and email so we can track your submissions.
+            Lightweight identity for now — no password, just your name and email so we can track your submissions.
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <label style={fieldLabel}>
@@ -1319,150 +1319,21 @@ export default function App() {
 
   useEffect(() => {
     (async () => {
-      let loadedEvents = null;
-      let loadedTickets = null;
-      try {
-        const ev = await storage.get("dictaz-events", true);
-        loadedEvents = ev ? JSON.parse(ev.value) : null;
-      } catch {
-        loadedEvents = null;
-      }
-      try {
-        const tk = await storage.get("dictaz-tickets", true);
-        loadedTickets = tk ? JSON.parse(tk.value) : null;
-      } catch {
-        loadedTickets = null;
-      }
-
-      if (loadedEvents === null) {
-        // First-ever load: seed one demo event, plus planner data, so the app has something to demo.
-        const demoId = uid();
-        const demoEvent = {
-          id: demoId,
-          name: "Dictaz Product Showcase",
-          description: "Live demo of the Dictaz platform, followed by drinks and networking.",
-          date: "2026-08-14",
-          time: "18:00",
-          location: "Kempinski Hotel Gold Coast City, Accra",
-          price: 25,
-          capacity: 120,
-        };
-        const demoTickets = [
-          {
-            id: uid(),
-            eventId: demoId,
-            buyerName: "Ama Boateng",
-            buyerEmail: "ama.boateng@example.com",
-            qty: 1,
-            code: ticketCode("Dictaz"),
-            checkedIn: true,
-            checkedInAt: new Date().toISOString(),
-            purchasedAt: new Date().toISOString(),
-          },
-          {
-            id: uid(),
-            eventId: demoId,
-            buyerName: "Kwame Owusu",
-            buyerEmail: "kwame.owusu@example.com",
-            qty: 2,
-            code: ticketCode("Dictaz"),
-            checkedIn: false,
-            purchasedAt: new Date().toISOString(),
-          },
-        ];
-        const demoTasks = [
-          { id: uid(), eventId: demoId, text: "Confirm venue booking", due: "2026-07-20", done: true },
-          { id: uid(), eventId: demoId, text: "Send invites to press list", due: "2026-07-25", done: true },
-          { id: uid(), eventId: demoId, text: "Finalize AV equipment", due: "2026-08-05", done: false },
-          { id: uid(), eventId: demoId, text: "Print name badges", due: "2026-08-12", done: false },
-        ];
-        const demoBudget = [
-          { id: uid(), eventId: demoId, category: "Venue", item: "Kempinski Hall rental", est: 2500, actual: 2500, paid: true },
-          { id: uid(), eventId: demoId, category: "Catering", item: "Canapés & drinks (120 guests)", est: 3600, actual: 3400, paid: true },
-          { id: uid(), eventId: demoId, category: "AV", item: "Sound system + mics", est: 800, actual: 0, paid: false },
-          { id: uid(), eventId: demoId, category: "Marketing", item: "Social media ads", est: 400, actual: 350, paid: true },
-        ];
-        const demoVendors = [
-          { id: uid(), eventId: demoId, name: "Kempinski Events Team", category: "Venue", contact: "events@kempinski.com", cost: 2500, status: "Confirmed" },
-          { id: uid(), eventId: demoId, name: "Accra Catering Co.", category: "Catering", contact: "+233 20 555 1212", cost: 3400, status: "Confirmed" },
-          { id: uid(), eventId: demoId, name: "SoundWorks Ghana", category: "AV", contact: "info@soundworksgh.com", cost: 800, status: "Contacted" },
-        ];
-        const demoTimeline = [
-          { id: uid(), eventId: demoId, time: "16:00", activity: "Vendor load-in & setup", owner: "Ops team" },
-          { id: uid(), eventId: demoId, time: "17:30", activity: "Final walkthrough", owner: "Event lead" },
-          { id: uid(), eventId: demoId, time: "18:00", activity: "Doors open / registration", owner: "Front desk" },
-          { id: uid(), eventId: demoId, time: "18:30", activity: "Welcome remarks", owner: "Founder" },
-          { id: uid(), eventId: demoId, time: "20:00", activity: "Networking & drinks", owner: "All" },
-          { id: uid(), eventId: demoId, time: "21:00", activity: "Event close / breakdown", owner: "Ops team" },
-        ];
-        const demoSubmissions = [
-          {
-            id: uid(),
-            vendorName: "Golden Bean Coffee",
-            vendorEmail: "yaw@goldenbean.gh",
-            name: "Golden Bean Coffee Pop-Up",
-            description: "A weekend pop-up featuring locally roasted coffee and pastries.",
-            date: "2026-08-22",
-            time: "09:00",
-            location: "Osu Oxford Street, Accra",
-            price: 0,
-            capacity: 60,
-            status: "pending",
-            submittedAt: new Date().toISOString(),
-          },
-        ];
-        setEvents([demoEvent]);
-        setTickets(demoTickets);
-        setTasks(demoTasks);
-        setBudgetItems(demoBudget);
-        setVendors(demoVendors);
-        setTimeline(demoTimeline);
-        setSubmissions(demoSubmissions);
+      const load = async (key) => {
         try {
-          await storage.set("dictaz-events", JSON.stringify([demoEvent]), true);
-          await storage.set("dictaz-tickets", JSON.stringify(demoTickets), true);
-          await storage.set("dictaz-tasks", JSON.stringify(demoTasks), true);
-          await storage.set("dictaz-budget", JSON.stringify(demoBudget), true);
-          await storage.set("dictaz-vendors", JSON.stringify(demoVendors), true);
-          await storage.set("dictaz-timeline", JSON.stringify(demoTimeline), true);
-          await storage.set("dictaz-submissions", JSON.stringify(demoSubmissions), true);
+          const r = await storage.get(key, true);
+          return r ? JSON.parse(r.value) : [];
         } catch {
-          /* seed is best-effort */
+          return [];
         }
-      } else {
-        setEvents(loadedEvents);
-        setTickets(loadedTickets || []);
-        try {
-          const tsk = await storage.get("dictaz-tasks", true);
-          setTasks(tsk ? JSON.parse(tsk.value) : []);
-        } catch {
-          setTasks([]);
-        }
-        try {
-          const bud = await storage.get("dictaz-budget", true);
-          setBudgetItems(bud ? JSON.parse(bud.value) : []);
-        } catch {
-          setBudgetItems([]);
-        }
-        try {
-          const ven = await storage.get("dictaz-vendors", true);
-          setVendors(ven ? JSON.parse(ven.value) : []);
-        } catch {
-          setVendors([]);
-        }
-        try {
-          const tml = await storage.get("dictaz-timeline", true);
-          setTimeline(tml ? JSON.parse(tml.value) : []);
-        } catch {
-          setTimeline([]);
-        }
-        try {
-          const sub = await storage.get("dictaz-submissions", true);
-          setSubmissions(sub ? JSON.parse(sub.value) : []);
-        } catch {
-          setSubmissions([]);
-        }
-      }
+      };
+      setEvents(await load("dictaz-events"));
+      setTickets(await load("dictaz-tickets"));
+      setTasks(await load("dictaz-tasks"));
+      setBudgetItems(await load("dictaz-budget"));
+      setVendors(await load("dictaz-vendors"));
+      setTimeline(await load("dictaz-timeline"));
+      setSubmissions(await load("dictaz-submissions"));
       setLoading(false);
     })();
   }, []);
