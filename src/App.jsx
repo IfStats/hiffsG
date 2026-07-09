@@ -42,6 +42,10 @@ function fmtDate(d) {
   if (isNaN(dt)) return d;
   return dt.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" });
 }
+function remainingForEvent(ev, tickets) {
+  const sold = tickets.filter((t) => t.eventId === ev.id).reduce((s, t) => s + t.qty, 0);
+  return Math.max(0, Number(ev.capacity) - sold);
+}
 
 /* ---------------- Perforated ticket-stub shell ---------------- */
 function Stub({ children, accent = COLORS.gold, bg = COLORS.paper, notchBg, className = "", style = {} }) {
@@ -81,6 +85,7 @@ function Perforation({ notchBg }) {
 /* ---------------- Top nav ---------------- */
 function Nav({ tab, setTab, banner }) {
   const tabs = [
+    { id: "home", label: "Home" },
     { id: "browse", label: "Browse" },
     { id: "planner", label: "Planner" },
     { id: "vendorportal", label: "Vendor Portal" },
@@ -101,7 +106,10 @@ function Nav({ tab, setTab, banner }) {
           gap: 12,
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div
+          onClick={() => setTab("home")}
+          style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", flexShrink: 0 }}
+        >
           <div
             style={{
               width: 30,
@@ -123,7 +131,7 @@ function Nav({ tab, setTab, banner }) {
             DICTAZ
           </span>
         </div>
-        <div style={{ display: "flex", gap: 4, background: "rgba(255,255,255,0.06)", padding: 4, borderRadius: 10 }}>
+        <div className="nav-tabs" style={{ display: "flex", gap: 4, background: "rgba(255,255,255,0.06)", padding: 4, borderRadius: 10, maxWidth: "100%", overflowX: "auto" }}>
           {tabs.map((t) => (
             <button
               key={t.id}
@@ -136,6 +144,8 @@ function Nav({ tab, setTab, banner }) {
                 fontFamily: "'Inter', sans-serif",
                 fontWeight: 600,
                 fontSize: 13.5,
+                whiteSpace: "nowrap",
+                flexShrink: 0,
                 background: tab === t.id ? COLORS.gold : "transparent",
                 color: tab === t.id ? COLORS.inkDeep : COLORS.paper,
                 transition: "background 0.15s ease",
@@ -186,7 +196,7 @@ function Empty({ title, body, cta }) {
 function EventCard({ ev, remaining, onSelect }) {
   const soldOut = remaining <= 0;
   return (
-    <Stub accent={soldOut ? COLORS.red : COLORS.gold} bg={COLORS.paper}>
+    <Stub accent={soldOut ? COLORS.red : COLORS.gold} bg={COLORS.paper} className="event-card">
       <div style={{ padding: "20px 22px 16px 30px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
           <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 600, letterSpacing: 1, color: COLORS.goldDeep, textTransform: "uppercase" }}>
@@ -346,14 +356,115 @@ function TicketReceipt({ event, tickets, onClose }) {
   );
 }
 
+function EventGrid({ events, remainingFor, onSelect }) {
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
+        gap: 20,
+      }}
+    >
+      {events.map((ev) => (
+        <EventCard key={ev.id} ev={ev} remaining={remainingFor(ev)} onSelect={onSelect} />
+      ))}
+    </div>
+  );
+}
+
+/* ---------------- Hero / Home ---------------- */
+function Hero({ eventCount, onBrowse, onList }) {
+  return (
+    <div className="hero" style={{ position: "relative", overflow: "hidden", padding: "56px 22px 46px", textAlign: "center" }}>
+      <div
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          inset: 0,
+          background: `radial-gradient(circle at 20% 15%, rgba(108,75,255,0.35), transparent 45%), radial-gradient(circle at 82% 75%, rgba(232,163,61,0.16), transparent 40%)`,
+          pointerEvents: "none",
+        }}
+      />
+      <div style={{ position: "relative", maxWidth: 640, margin: "0 auto" }}>
+        <div
+          style={{
+            display: "inline-block",
+            fontFamily: "'JetBrains Mono', monospace",
+            fontSize: 11,
+            fontWeight: 600,
+            letterSpacing: 2,
+            textTransform: "uppercase",
+            color: COLORS.gold,
+            border: `1px solid ${COLORS.gold}`,
+            borderRadius: 20,
+            padding: "5px 14px",
+            marginBottom: 18,
+          }}
+        >
+          {eventCount > 0 ? `${eventCount} event${eventCount > 1 ? "s" : ""} on sale now` : "Ticketing & planning, in one place"}
+        </div>
+        <h1 className="hero-title" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 56, lineHeight: 1, letterSpacing: 0.5, color: COLORS.paper, margin: "0 0 14px" }}>
+          Events worth
+          <br />
+          showing up for.
+        </h1>
+        <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 15.5, color: COLORS.mute, maxWidth: 460, margin: "0 auto 28px", lineHeight: 1.6 }}>
+          Dictaz gets your event on sale, keeps the planning organized, and lets vendors bring their own — all from one dashboard.
+        </p>
+        <div className="hero-actions" style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
+          <button onClick={onBrowse} style={{ ...solidBtn, padding: "12px 26px", fontSize: 14.5, background: COLORS.gold, color: COLORS.inkDeep }}>
+            Browse events
+          </button>
+          <button onClick={onList} style={{ ...ghostBtn, padding: "12px 26px", fontSize: 14.5, background: "transparent", color: COLORS.paper, borderColor: "rgba(251,247,239,0.35)" }}>
+            List your event
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Home({ events, tickets, onBrowse, onList }) {
+  const upcoming = events
+    .slice()
+    .sort((a, b) => (a.date || "").localeCompare(b.date || ""))
+    .slice(0, 6);
+
+  return (
+    <div>
+      <Hero eventCount={events.length} onBrowse={onBrowse} onList={onList} />
+      <div style={{ padding: "8px 22px 60px", maxWidth: 1040, margin: "0 auto" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
+          <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, color: COLORS.paper }}>Happening soon</div>
+          {events.length > 6 && (
+            <button onClick={onBrowse} style={{ ...ghostBtn, color: COLORS.paper, borderColor: "rgba(251,247,239,0.35)" }}>
+              See all {events.length} events
+            </button>
+          )}
+        </div>
+        {upcoming.length === 0 ? (
+          <Empty
+            title="No events yet"
+            body="Publish one from the Dashboard, or list one as a vendor — it'll show up right here."
+            cta={
+              <button onClick={onList} style={{ ...solidBtn, marginTop: 16 }}>
+                List your event
+              </button>
+            }
+          />
+        ) : (
+          <EventGrid events={upcoming} remainingFor={(ev) => remainingForEvent(ev, tickets)} onSelect={onBrowse} />
+        )}
+      </div>
+    </div>
+  );
+}
+
 function Browse({ events, tickets, onPurchased }) {
   const [selected, setSelected] = useState(null);
   const [receipt, setReceipt] = useState(null);
 
-  const remainingFor = (ev) => {
-    const sold = tickets.filter((t) => t.eventId === ev.id).reduce((s, t) => s + t.qty, 0);
-    return Math.max(0, Number(ev.capacity) - sold);
-  };
+  const remainingFor = (ev) => remainingForEvent(ev, tickets);
 
   const handleConfirm = ({ name, email, qty }) => {
     const created = Array.from({ length: qty }).map(() => ({
@@ -382,20 +493,11 @@ function Browse({ events, tickets, onPurchased }) {
 
   return (
     <div style={{ padding: "28px 22px 60px", maxWidth: 1040, margin: "0 auto" }}>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
-          gap: 20,
-        }}
-      >
-        {events
-          .slice()
-          .sort((a, b) => (a.date || "").localeCompare(b.date || ""))
-          .map((ev) => (
-            <EventCard key={ev.id} ev={ev} remaining={remainingFor(ev)} onSelect={setSelected} />
-          ))}
-      </div>
+      <EventGrid
+        events={events.slice().sort((a, b) => (a.date || "").localeCompare(b.date || ""))}
+        remainingFor={remainingFor}
+        onSelect={setSelected}
+      />
       {selected && (
         <PurchaseFlow
           event={selected}
@@ -481,7 +583,7 @@ function EventForm({ onCreate, onCancel }) {
     <Stub accent={COLORS.gold} bg={COLORS.paper} style={{ marginBottom: 24 }}>
       <div style={{ padding: "22px 26px" }}>
         <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: COLORS.slate, marginBottom: 14 }}>New event</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
           <label style={{ ...fieldLabel, gridColumn: "1 / -1" }}>
             Event name
             <input style={fieldInput} value={f.name} onChange={set("name")} placeholder="Dictaz Product Showcase" />
@@ -549,7 +651,7 @@ function Dashboard({ events, tickets, submissions, onCreate, onDelete, onResetDa
         <Panel title="Vendor submissions awaiting review">
           {pending.map((s) => (
             <div key={s.id} style={rowStyle}>
-              <div style={{ flex: 1 }}>
+              <div style={{ flex: 1, minWidth: 140 }}>
                 <div style={{ color: COLORS.slate, fontWeight: 600 }}>{s.name}</div>
                 <div style={{ fontSize: 11.5, color: COLORS.mute }}>
                   {fmtDate(s.date)} {s.time ? `· ${s.time}` : ""} · {s.location} · submitted by {s.vendorName} ({s.vendorEmail})
@@ -762,7 +864,8 @@ function Panel({ children, title, right }) {
 const rowStyle = {
   display: "flex",
   alignItems: "center",
-  gap: 12,
+  flexWrap: "wrap",
+  gap: 10,
   padding: "10px 0",
   borderBottom: `1px solid ${COLORS.line}`,
   fontFamily: "'Inter', sans-serif",
@@ -815,7 +918,7 @@ function TaskPanel({ tasks, onAdd, onToggle, onDelete }) {
         tasks.map((t) => (
           <div key={t.id} style={rowStyle}>
             <input type="checkbox" checked={t.done} onChange={() => onToggle(t.id)} style={{ width: 16, height: 16, accentColor: COLORS.gold }} />
-            <span style={{ flex: 1, color: t.done ? COLORS.mute : COLORS.slate, textDecoration: t.done ? "line-through" : "none" }}>{t.text}</span>
+            <span style={{ flex: 1, minWidth: 140, color: t.done ? COLORS.mute : COLORS.slate, textDecoration: t.done ? "line-through" : "none" }}>{t.text}</span>
             {t.due && <span style={{ fontSize: 11.5, color: COLORS.mute, fontFamily: "'JetBrains Mono', monospace" }}>{fmtDate(t.due)}</span>}
             <button style={smallBtn} onClick={() => onDelete(t.id)}>Remove</button>
           </div>
@@ -868,7 +971,7 @@ function BudgetPanel({ items, onAdd, onTogglePaid, onDelete }) {
         items.map((i) => (
           <div key={i.id} style={rowStyle}>
             <span style={badge(COLORS.paperDim, COLORS.slate)}>{i.category}</span>
-            <span style={{ flex: 1, color: COLORS.slate }}>{i.item}</span>
+            <span style={{ flex: 1, minWidth: 140, color: COLORS.slate }}>{i.item}</span>
             <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12.5, color: COLORS.mute }}>est {money(i.est)}</span>
             <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12.5, color: COLORS.slate }}>act {money(i.actual)}</span>
             <button
@@ -914,7 +1017,7 @@ function VendorPanel({ vendors, onAdd, onDelete, onStatus }) {
       ) : (
         vendors.map((v) => (
           <div key={v.id} style={rowStyle}>
-            <div style={{ flex: 1 }}>
+            <div style={{ flex: 1, minWidth: 140 }}>
               <div style={{ color: COLORS.slate, fontWeight: 600 }}>{v.name}</div>
               <div style={{ fontSize: 11.5, color: COLORS.mute }}>{v.category} {v.contact ? `· ${v.contact}` : ""}</div>
             </div>
@@ -965,7 +1068,7 @@ function TimelinePanel({ items, onAdd, onDelete }) {
         sorted.map((i) => (
           <div key={i.id} style={rowStyle}>
             <span style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 600, fontSize: 13, color: COLORS.goldDeep, width: 60 }}>{i.time}</span>
-            <span style={{ flex: 1, color: COLORS.slate }}>{i.activity}</span>
+            <span style={{ flex: 1, minWidth: 140, color: COLORS.slate }}>{i.activity}</span>
             <span style={{ fontSize: 11.5, color: COLORS.mute }}>{i.owner}</span>
             <button style={smallBtn} onClick={() => onDelete(i.id)}>Remove</button>
           </div>
@@ -1117,7 +1220,7 @@ function VendorSubmissionForm({ vendor, onSubmit }) {
 
   return (
     <Panel title="Submit a new event for review">
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
         <label style={{ ...fieldLabel, gridColumn: "1 / -1" }}>
           Event name
           <input style={fieldInput} value={f.name} onChange={set("name")} placeholder="Golden Bean Coffee Pop-Up" />
@@ -1183,7 +1286,7 @@ function VendorPortal({ submissions, onAddSubmission }) {
         ) : (
           mine.map((s) => (
             <div key={s.id} style={rowStyle}>
-              <div style={{ flex: 1 }}>
+              <div style={{ flex: 1, minWidth: 140 }}>
                 <div style={{ color: COLORS.slate, fontWeight: 600 }}>{s.name}</div>
                 <div style={{ fontSize: 11.5, color: COLORS.mute }}>{fmtDate(s.date)} · {s.location}</div>
               </div>
@@ -1198,7 +1301,7 @@ function VendorPortal({ submissions, onAddSubmission }) {
 
 /* ---------------- App shell ---------------- */
 export default function App() {
-  const [tab, setTab] = useState("browse");
+  const [tab, setTab] = useState("home");
   const [events, setEvents] = useState([]);
   const [tickets, setTickets] = useState([]);
   const [tasks, setTasks] = useState([]);
@@ -1500,9 +1603,23 @@ export default function App() {
       <style>{`
         ${FONT_IMPORT}
         * { box-sizing: border-box; }
-        input:focus { outline: 2px solid ${COLORS.gold}; outline-offset: 1px; }
+        input:focus, select:focus { outline: 2px solid ${COLORS.gold}; outline-offset: 1px; }
         button:focus-visible { outline: 2px solid ${COLORS.gold}; outline-offset: 2px; }
         ::placeholder { color: ${COLORS.mute}; opacity: 0.8; }
+        button:not(:disabled) { transition: filter 0.12s ease, transform 0.08s ease; }
+        button:not(:disabled):hover { filter: brightness(1.08); }
+        button:not(:disabled):active { transform: translateY(1px); }
+        .event-card { transition: transform 0.18s ease, box-shadow 0.18s ease; }
+        .event-card:hover { transform: translateY(-3px); box-shadow: 0 4px 0 rgba(27,22,51,0.06), 0 22px 36px -16px rgba(18,15,38,0.5); }
+        .nav-tabs::-webkit-scrollbar { display: none; }
+        .nav-tabs { scrollbar-width: none; }
+
+        @media (max-width: 640px) {
+          .hero { padding: 40px 16px 34px !important; }
+          .hero-title { font-size: 38px !important; }
+          .hero-actions button { width: 100%; }
+          .hero-actions { flex-direction: column; align-items: stretch; }
+        }
       `}</style>
       <Nav
         tab={tab}
@@ -1518,6 +1635,7 @@ export default function App() {
         <div style={{ color: COLORS.paper, textAlign: "center", padding: 80, fontFamily: "'Inter', sans-serif" }}>Loading Dictaz…</div>
       ) : (
         <>
+          {tab === "home" && <Home events={events} tickets={tickets} onBrowse={() => setTab("browse")} onList={() => setTab("vendorportal")} />}
           {tab === "browse" && <Browse events={events} tickets={tickets} onPurchased={handlePurchased} />}
           {tab === "planner" && (
             <Planner events={events} tasks={tasks} budgetItems={budgetItems} vendors={vendors} timeline={timeline} handlers={plannerHandlers} />
