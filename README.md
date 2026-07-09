@@ -8,10 +8,19 @@ steps in order — none of them require writing code.
 
 1. Go to https://supabase.com → sign up → **New project** (pick any name/region, free plan).
 2. Once it's ready, open **SQL Editor** → **New query**.
-3. Paste the contents of `supabase/schema.sql` and click **Run**.
+3. Paste the contents of `supabase/schema.sql` and click **Run**. This creates
+   real, linked tables — `events`, `tickets`, `tasks`, `budget_items`,
+   `vendors`, `timeline_items`, `submissions` — with foreign keys back to
+   `events` and cascading deletes (delete an event, its tickets/tasks/
+   budget/vendors/timeline go with it automatically).
 4. Go to **Settings → API**. You'll need two values from this page:
    - **Project URL**
    - **anon public** key
+
+> **Upgrading from the earlier single-table (`kv_store`) version?** This
+> schema replaces it — the app no longer talks to `kv_store` at all. Once
+> you've confirmed the new tables work, you can drop the old one (the
+> commented-out line at the bottom of `schema.sql`).
 
 ## 2. Add your credentials
 
@@ -30,7 +39,7 @@ npm install
 npm run dev
 ```
 Open the printed local URL and confirm events/tickets you create actually
-show up in Supabase (**Table Editor → kv_store**).
+show up in Supabase (**Table Editor → events**, **tickets**, etc.).
 
 ## 4. Put it on GitHub
 
