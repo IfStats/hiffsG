@@ -1,36 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
-
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-const configured = Boolean(supabaseUrl && supabaseAnonKey);
-
-if (!configured) {
-  // eslint-disable-next-line no-console
-  console.warn(
-    "Missing Supabase env vars — set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY (see .env.example). The app will render, but nothing will save until these are set."
-  );
-}
-
-let supabase = null;
-if (configured) {
-  try {
-    supabase = createClient(supabaseUrl, supabaseAnonKey);
-  } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error("Failed to create Supabase client:", err);
-    supabase = null;
-  }
-}
-
-const NOT_CONFIGURED_ERROR = new Error(
-  "Supabase isn't configured yet — set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your deployment environment variables, then redeploy."
-);
-
-function requireClient() {
-  if (!supabase) throw NOT_CONFIGURED_ERROR;
-  return supabase;
-}
+import { requireClient, configured } from "./supabaseClient.js";
 
 /* ---- row <-> app-object mapping (only needed where field names differ) ---- */
 const eventToRow = (e) => ({
@@ -42,8 +10,19 @@ const eventToRow = (e) => ({
   location: e.location,
   price: e.price,
   capacity: e.capacity,
+  organizer_id: e.organizerId || null,
 });
-const eventFromRow = (r) => ({ ...r });
+const eventFromRow = (r) => ({
+  id: r.id,
+  name: r.name,
+  description: r.description,
+  date: r.date,
+  time: r.time,
+  location: r.location,
+  price: r.price,
+  capacity: r.capacity,
+  organizerId: r.organizer_id,
+});
 
 const ticketToRow = (t) => ({
   id: t.id,
@@ -109,6 +88,7 @@ const submissionToRow = (s) => ({
   capacity: s.capacity,
   status: s.status,
   submitted_at: s.submittedAt || new Date().toISOString(),
+  submitted_by: s.submittedBy || null,
 });
 const submissionFromRow = (r) => ({
   id: r.id,
@@ -123,6 +103,7 @@ const submissionFromRow = (r) => ({
   capacity: r.capacity,
   status: r.status,
   submittedAt: r.submitted_at,
+  submittedBy: r.submitted_by,
 });
 
 /**

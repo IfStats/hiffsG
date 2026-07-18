@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { db } from "./lib/db.js";
+import { auth } from "./lib/auth.js";
 
 /* ---------------------------------------------------------
    DICTAZ — event ticketing, simplified.
@@ -83,14 +84,17 @@ function Perforation({ notchBg }) {
 }
 
 /* ---------------- Top nav ---------------- */
-function Nav({ tab, setTab, banner }) {
+function Nav({ tab, setTab, banner, profile, onLogin, onSignUp, onLogout }) {
+  const canManage = profile && (profile.role === "admin" || (profile.role === "organizer" && profile.organizer_approved));
+  const isAdmin = profile && profile.role === "admin";
   const tabs = [
     { id: "home", label: "Home" },
     { id: "browse", label: "Browse" },
-    { id: "planner", label: "Planner" },
-    { id: "vendorportal", label: "Vendor Portal" },
-    { id: "dashboard", label: "Dashboard" },
-    { id: "checkin", label: "Check-in" },
+    ...(canManage ? [{ id: "planner", label: "Planner" }] : []),
+    { id: "vendorportal", label: "List an event" },
+    ...(canManage ? [{ id: "dashboard", label: "Dashboard" }] : []),
+    ...(canManage ? [{ id: "checkin", label: "Check-in" }] : []),
+    ...(isAdmin ? [{ id: "admin", label: "Admin" }] : []),
   ];
   return (
     <div style={{ position: "sticky", top: 0, zIndex: 20 }}>
@@ -154,6 +158,31 @@ function Nav({ tab, setTab, banner }) {
               {t.label}
             </button>
           ))}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+          {profile ? (
+            <>
+              <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: COLORS.paper, textAlign: "right" }}>
+                {profile.display_name}
+                <span style={{ display: "block", color: COLORS.mute, fontSize: 11 }}>
+                  {ROLE_LABELS[profile.role]}
+                  {profile.role === "organizer" && !profile.organizer_approved ? " · pending" : ""}
+                </span>
+              </span>
+              <button onClick={onLogout} style={{ ...ghostBtn, color: COLORS.paper, borderColor: "rgba(251,247,239,0.35)", padding: "7px 12px", fontSize: 12.5 }}>
+                Log out
+              </button>
+            </>
+          ) : (
+            <>
+              <button onClick={onLogin} style={{ ...ghostBtn, color: COLORS.paper, borderColor: "rgba(251,247,239,0.35)", padding: "7px 12px", fontSize: 12.5 }}>
+                Log in
+              </button>
+              <button onClick={onSignUp} style={{ ...solidBtn, background: COLORS.gold, color: COLORS.inkDeep, padding: "7px 14px", fontSize: 12.5 }}>
+                Sign up
+              </button>
+            </>
+          )}
         </div>
       </div>
       {banner && (
@@ -1153,44 +1182,7 @@ function Planner({ events, tasks, budgetItems, vendors, timeline, handlers }) {
 }
 
 /* ---------------- Vendor portal ---------------- */
-function VendorSignIn({ onSignIn }) {
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [error, setError] = useState("");
-
-  const submit = () => {
-    if (!name.trim() || !email.trim()) return setError("Enter your name and email to continue.");
-    setError("");
-    onSignIn({ name: name.trim(), email: email.trim().toLowerCase() });
-  };
-
-  return (
-    <div style={{ maxWidth: 420, margin: "60px auto 0" }}>
-      <Stub accent={COLORS.gold} bg={COLORS.paper}>
-        <div style={{ padding: "26px 28px" }}>
-          <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, color: COLORS.slate, marginBottom: 4 }}>Vendor sign-in</div>
-          <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: COLORS.mute, marginBottom: 18 }}>
-            Lightweight identity for now — no password, just your name and email so we can track your submissions.
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <label style={fieldLabel}>
-              Vendor / business name
-              <input style={fieldInput} value={name} onChange={(e) => setName(e.target.value)} placeholder="Golden Bean Coffee" onKeyDown={(e) => e.key === "Enter" && submit()} />
-            </label>
-            <label style={fieldLabel}>
-              Email
-              <input style={fieldInput} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@business.com" onKeyDown={(e) => e.key === "Enter" && submit()} />
-            </label>
-            {error && <div style={{ color: COLORS.red, fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 600 }}>{error}</div>}
-            <button onClick={submit} style={{ ...solidBtn, marginTop: 4 }}>Continue</button>
-          </div>
-        </div>
-      </Stub>
-    </div>
-  );
-}
-
-function VendorSubmissionForm({ vendor, onSubmit }) {
+function VendorSubmissionForm({ profile, onSubmit }) {
   const [f, setF] = useState({ name: "", description: "", date: "", time: "", location: "", price: "", capacity: "" });
   const [error, setError] = useState("");
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
@@ -1202,8 +1194,9 @@ function VendorSubmissionForm({ vendor, onSubmit }) {
     }
     onSubmit({
       id: uid(),
-      vendorName: vendor.name,
-      vendorEmail: vendor.email,
+      vendorName: profile.display_name,
+      vendorEmail: profile.email,
+      submittedBy: profile.id,
       name: f.name.trim(),
       description: f.description.trim(),
       date: f.date,
@@ -1262,23 +1255,35 @@ const SUBMISSION_STATUS_COLORS = {
   rejected: COLORS.red,
 };
 
-function VendorPortal({ submissions, onAddSubmission }) {
-  const [vendor, setVendor] = useState(null);
+function VendorPortal({ profile, submissions, onAddSubmission, onLogin, onSignUp }) {
+  if (!profile) {
+    return (
+      <div style={{ maxWidth: 420, margin: "60px auto 0", textAlign: "center" }}>
+        <Stub accent={COLORS.gold} bg={COLORS.paper}>
+          <div style={{ padding: "26px 28px" }}>
+            <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, color: COLORS.slate, marginBottom: 8 }}>Log in to list an event</div>
+            <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: COLORS.mute, marginBottom: 18 }}>
+              Submissions are tied to your account now, so we can track review status and hand off ownership once approved.
+            </div>
+            <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+              <button onClick={onLogin} style={ghostBtn}>Log in</button>
+              <button onClick={onSignUp} style={solidBtn}>Sign up</button>
+            </div>
+          </div>
+        </Stub>
+      </div>
+    );
+  }
 
-  if (!vendor) return <VendorSignIn onSignIn={setVendor} />;
-
-  const mine = submissions.filter((s) => s.vendorEmail === vendor.email).sort((a, b) => (b.submittedAt || "").localeCompare(a.submittedAt || ""));
+  const mine = submissions.filter((s) => s.submittedBy === profile.id).sort((a, b) => (b.submittedAt || "").localeCompare(a.submittedAt || ""));
 
   return (
     <div style={{ padding: "28px 22px 60px", maxWidth: 720, margin: "0 auto" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
-        <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: COLORS.paper }}>
-          Signed in as <strong>{vendor.name}</strong> ({vendor.email})
-        </div>
-        <button onClick={() => setVendor(null)} style={ghostBtn}>Switch vendor</button>
+      <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: COLORS.paper, marginBottom: 18 }}>
+        Submitting as <strong>{profile.display_name}</strong> ({profile.email})
       </div>
 
-      <VendorSubmissionForm vendor={vendor} onSubmit={onAddSubmission} />
+      <VendorSubmissionForm profile={profile} onSubmit={onAddSubmission} />
 
       <Panel title="Your submissions">
         {mine.length === 0 ? (
@@ -1299,6 +1304,168 @@ function VendorPortal({ submissions, onAddSubmission }) {
   );
 }
 
+/* ---------------- Auth ---------------- */
+const ROLE_LABELS = { attendee: "Attendee", organizer: "Organizer", admin: "Admin" };
+
+function AuthModal({ mode, onClose, onSwitchMode, onSignUp, onSignIn }) {
+  const [displayName, setDisplayName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [wantsOrganizer, setWantsOrganizer] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const submit = async () => {
+    setError("");
+    setNotice("");
+    if (!email.trim() || !password) return setError("Email and password are required.");
+    if (mode === "signup" && !displayName.trim()) return setError("Name is required.");
+    setBusy(true);
+    try {
+      if (mode === "signup") {
+        const result = await onSignUp({
+          email: email.trim(),
+          password,
+          displayName: displayName.trim(),
+          role: wantsOrganizer ? "organizer" : "attendee",
+        });
+        if (result?.needsEmailConfirmation) {
+          setNotice("Account created — check your email to confirm it, then log in.");
+        } else if (wantsOrganizer) {
+          setNotice("Account created. Organizer access is pending admin approval — you can browse and buy tickets meanwhile.");
+        } else {
+          onClose();
+        }
+      } else {
+        await onSignIn({ email: email.trim(), password });
+        onClose();
+      }
+    } catch (err) {
+      setError(err.message || "Something went wrong.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div style={overlayStyle} onClick={onClose}>
+      <div style={{ maxWidth: 400, width: "100%" }} onClick={(e) => e.stopPropagation()}>
+        <Stub accent={COLORS.gold} bg={COLORS.paper}>
+          <div style={{ padding: "26px 28px" }}>
+            <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, color: COLORS.slate, marginBottom: 18 }}>
+              {mode === "signup" ? "Create your account" : "Log in"}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {mode === "signup" && (
+                <label style={fieldLabel}>
+                  Name
+                  <input style={fieldInput} value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Ama Boateng" />
+                </label>
+              )}
+              <label style={fieldLabel}>
+                Email
+                <input style={fieldInput} type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@email.com" />
+              </label>
+              <label style={fieldLabel}>
+                Password
+                <input style={fieldInput} type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" onKeyDown={(e) => e.key === "Enter" && submit()} />
+              </label>
+              {mode === "signup" && (
+                <label style={{ display: "flex", alignItems: "center", gap: 8, fontFamily: "'Inter', sans-serif", fontSize: 13, color: COLORS.slate }}>
+                  <input type="checkbox" checked={wantsOrganizer} onChange={(e) => setWantsOrganizer(e.target.checked)} style={{ width: 16, height: 16, accentColor: COLORS.gold }} />
+                  I want to organize and publish events
+                </label>
+              )}
+              {wantsOrganizer && mode === "signup" && (
+                <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.mute }}>
+                  Organizer access needs a quick admin approval after you sign up.
+                </div>
+              )}
+              {error && <div style={{ color: COLORS.red, fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 600 }}>{error}</div>}
+              {notice && <div style={{ color: "#5C8A3A", fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 600 }}>{notice}</div>}
+              <button onClick={submit} disabled={busy} style={{ ...solidBtn, marginTop: 4 }}>
+                {busy ? "Please wait…" : mode === "signup" ? "Sign up" : "Log in"}
+              </button>
+              <button
+                onClick={() => onSwitchMode(mode === "signup" ? "login" : "signup")}
+                style={{ ...ghostBtn, border: "none", padding: "4px 0" }}
+              >
+                {mode === "signup" ? "Already have an account? Log in" : "New here? Create an account"}
+              </button>
+            </div>
+          </div>
+        </Stub>
+      </div>
+    </div>
+  );
+}
+
+function Admin({ profile }) {
+  const [pending, setPending] = useState(null); // null = loading
+  const [error, setError] = useState("");
+
+  const refresh = async () => {
+    try {
+      setPending(await auth.listPendingOrganizers());
+    } catch (err) {
+      setError(err.message || "Couldn't load applications.");
+    }
+  };
+
+  useEffect(() => {
+    refresh();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const approve = async (id) => {
+    try {
+      await auth.approveOrganizer(id);
+      refresh();
+    } catch (err) {
+      setError(err.message || "Couldn't approve.");
+    }
+  };
+  const reject = async (id) => {
+    try {
+      await auth.rejectOrganizer(id);
+      refresh();
+    } catch (err) {
+      setError(err.message || "Couldn't reject.");
+    }
+  };
+
+  return (
+    <div style={{ padding: "28px 22px 60px", maxWidth: 720, margin: "0 auto" }}>
+      <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: COLORS.paper, marginBottom: 18 }}>
+        Signed in as <strong>{profile.displayName || profile.display_name}</strong> · Admin
+      </div>
+      <Panel title="Organizer applications awaiting approval">
+        {error && <div style={{ color: COLORS.red, fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 600, marginBottom: 10 }}>{error}</div>}
+        {pending === null ? (
+          <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: COLORS.mute }}>Loading…</div>
+        ) : pending.length === 0 ? (
+          <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: COLORS.mute }}>Nothing waiting on review.</div>
+        ) : (
+          pending.map((p) => (
+            <div key={p.id} style={rowStyle}>
+              <div style={{ flex: 1, minWidth: 140 }}>
+                <div style={{ color: COLORS.slate, fontWeight: 600 }}>{p.display_name}</div>
+                <div style={{ fontSize: 11.5, color: COLORS.mute }}>{p.email}</div>
+              </div>
+              <button style={{ ...smallBtn, background: COLORS.gold, color: COLORS.inkDeep, border: "none" }} onClick={() => approve(p.id)}>
+                Approve
+              </button>
+              <button style={{ ...smallBtn, color: COLORS.red, borderColor: COLORS.red }} onClick={() => reject(p.id)}>
+                Reject
+              </button>
+            </div>
+          ))
+        )}
+      </Panel>
+    </div>
+  );
+}
+
 /* ---------------- App shell ---------------- */
 export default function App() {
   const [tab, setTab] = useState("home");
@@ -1311,6 +1478,8 @@ export default function App() {
   const [submissions, setSubmissions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [banner, setBanner] = useState(null);
+  const [profile, setProfile] = useState(null);
+  const [authModal, setAuthModal] = useState(null); // null | 'login' | 'signup'
 
   const flash = (text, type = "ok") => {
     setBanner({ text, type });
@@ -1320,6 +1489,48 @@ export default function App() {
     // eslint-disable-next-line no-console
     console.error(err);
     flash("Couldn't save — try again.", "error");
+  };
+
+  useEffect(() => {
+    let unsub = null;
+    (async () => {
+      try {
+        const session = await auth.getSession();
+        if (session) setProfile(await auth.getProfile(session.user.id));
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error(err);
+      }
+      try {
+        unsub = auth.onAuthStateChange(async (session) => {
+          if (session) {
+            try {
+              setProfile(await auth.getProfile(session.user.id));
+            } catch (err) {
+              // eslint-disable-next-line no-console
+              console.error(err);
+            }
+          } else {
+            setProfile(null);
+          }
+        });
+      } catch {
+        /* not configured — auth stays disabled, rest of the app still works */
+      }
+    })();
+    return () => unsub && unsub.unsubscribe();
+  }, []);
+
+  const handleSignUp = (fields) => auth.signUp(fields);
+  const handleSignIn = (fields) => auth.signIn(fields);
+  const handleLogout = async () => {
+    try {
+      await auth.signOut();
+      setProfile(null);
+      flash("Logged out.");
+    } catch (err) {
+      fail(err);
+    }
   };
 
   useEffect(() => {
@@ -1345,9 +1556,10 @@ export default function App() {
   }, []);
 
   const handleCreate = async (ev) => {
+    const withOwner = { ...ev, organizerId: profile ? profile.id : null };
     try {
-      await db.events.create(ev);
-      setEvents([ev, ...events]);
+      await db.events.create(withOwner);
+      setEvents([withOwner, ...events]);
       flash(`"${ev.name}" is live on Browse.`);
     } catch (err) {
       fail(err);
@@ -1397,6 +1609,7 @@ export default function App() {
       location: s.location,
       price: s.price,
       capacity: s.capacity,
+      organizerId: s.submittedBy || null,
     };
     try {
       await db.events.create(newEvent);
@@ -1565,6 +1778,10 @@ export default function App() {
       <Nav
         tab={tab}
         setTab={setTab}
+        profile={profile}
+        onLogin={() => setAuthModal("login")}
+        onSignUp={() => setAuthModal("signup")}
+        onLogout={handleLogout}
         banner={
           banner ||
           (!db.isConfigured
@@ -1572,19 +1789,46 @@ export default function App() {
             : null)
         }
       />
+      {authModal && (
+        <AuthModal
+          mode={authModal}
+          onClose={() => setAuthModal(null)}
+          onSwitchMode={setAuthModal}
+          onSignUp={handleSignUp}
+          onSignIn={handleSignIn}
+        />
+      )}
       {loading ? (
         <div style={{ color: COLORS.paper, textAlign: "center", padding: 80, fontFamily: "'Inter', sans-serif" }}>Loading Dictaz…</div>
       ) : (
         <>
           {tab === "home" && <Home events={events} tickets={tickets} onBrowse={() => setTab("browse")} onList={() => setTab("vendorportal")} />}
           {tab === "browse" && <Browse events={events} tickets={tickets} onPurchased={handlePurchased} />}
-          {tab === "planner" && (
-            <Planner events={events} tasks={tasks} budgetItems={budgetItems} vendors={vendors} timeline={timeline} handlers={plannerHandlers} />
+          {["planner", "dashboard", "checkin"].includes(tab) && !profile && (
+            <Empty title="Log in required" body="This area is for organizers and admins. Log in with an approved account to continue." />
           )}
-          {tab === "vendorportal" && <VendorPortal submissions={submissions} onAddSubmission={handleAddSubmission} />}
-          {tab === "dashboard" && (
+          {tab === "planner" && profile && (
+            <Planner
+              events={profile.role === "admin" ? events : events.filter((e) => e.organizerId === profile.id)}
+              tasks={tasks}
+              budgetItems={budgetItems}
+              vendors={vendors}
+              timeline={timeline}
+              handlers={plannerHandlers}
+            />
+          )}
+          {tab === "vendorportal" && (
+            <VendorPortal
+              profile={profile}
+              submissions={submissions}
+              onAddSubmission={handleAddSubmission}
+              onLogin={() => setAuthModal("login")}
+              onSignUp={() => setAuthModal("signup")}
+            />
+          )}
+          {tab === "dashboard" && profile && (
             <Dashboard
-              events={events}
+              events={profile.role === "admin" ? events : events.filter((e) => e.organizerId === profile.id)}
               tickets={tickets}
               submissions={submissions}
               onCreate={handleCreate}
@@ -1594,7 +1838,12 @@ export default function App() {
               onRejectSubmission={handleRejectSubmission}
             />
           )}
-          {tab === "checkin" && <CheckIn events={events} tickets={tickets} onCheckIn={handleCheckIn} />}
+          {tab === "checkin" && profile && (() => {
+            const ownedEvents = profile.role === "admin" ? events : events.filter((e) => e.organizerId === profile.id);
+            const ownedIds = new Set(ownedEvents.map((e) => e.id));
+            return <CheckIn events={ownedEvents} tickets={tickets.filter((t) => ownedIds.has(t.eventId))} onCheckIn={handleCheckIn} />;
+          })()}
+          {tab === "admin" && profile && profile.role === "admin" && <Admin profile={profile} />}
         </>
       )}
     </div>

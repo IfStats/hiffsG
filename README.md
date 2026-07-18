@@ -13,14 +13,33 @@ steps in order — none of them require writing code.
    `vendors`, `timeline_items`, `submissions` — with foreign keys back to
    `events` and cascading deletes (delete an event, its tickets/tasks/
    budget/vendors/timeline go with it automatically).
-4. Go to **Settings → API**. You'll need two values from this page:
+4. Run `supabase/phase1_auth_roles.sql` next (new query, paste, run). This
+   adds:
+   - A `profiles` table (role: attendee / organizer / admin), auto-created
+     for every new signup via a database trigger
+   - Ownership columns (`events.organizer_id`, `submissions.submitted_by`)
+   - Real row-level-security policies replacing the old wide-open ones —
+     browsing events stays public, but creating/editing/deleting is now
+     scoped to the owning organizer or an admin
+5. **Make your own account an admin.** Sign up in the running app once
+   (any account works), then in Supabase go to **Table Editor → profiles**,
+   find your row, and change `role` from `attendee` to `admin`. That's the
+   only way to get the first admin — from then on, you can approve
+   organizers from the app's Admin tab.
+6. Go to **Settings → API**. You'll need two values from this page:
    - **Project URL**
    - **anon public** key
 
-> **Upgrading from the earlier single-table (`kv_store`) version?** This
-> schema replaces it — the app no longer talks to `kv_store` at all. Once
-> you've confirmed the new tables work, you can drop the old one (the
-> commented-out line at the bottom of `schema.sql`).
+> **Upgrading from the earlier single-table (`kv_store`) version?** The
+> relational schema replaces it entirely — the app no longer talks to
+> `kv_store`. Once you've confirmed the new tables work, you can drop the
+> old one (commented-out line at the bottom of `schema.sql`).
+
+### About email confirmation
+
+By default, Supabase requires confirming your email before you can log in.
+For quick local testing you can turn this off: **Authentication → Providers
+→ Email → toggle off "Confirm email"**. Leave it on for a real launch.
 
 ## 2. Add your credentials
 
@@ -80,7 +99,12 @@ next one if this grows past the demo stage.
 
 - **Payments** are still mocked — "buying" a ticket just writes a record,
   no money moves. Wiring up real payments needs a payment processor
-  (e.g. Stripe) and, ideally, a small server-side function so card details
-  never touch the browser directly.
-- **Vendor sign-in** is name+email only, no password — fine for a demo,
-  not for real accounts.
+  (e.g. Stripe or, better for Ghana, Paystack/Flutterwave for Mobile Money)
+  and, ideally, a small server-side function so card/payment details never
+  touch the browser directly.
+- ~~Vendor sign-in is name+email only~~ — fixed: submitting an event now
+  requires a real account (Supabase Auth), and the identity is pulled from
+  your profile automatically.
+- **Ticket purchase is still guest checkout only** — no login required to
+  buy, and tickets aren't yet linked to attendee accounts (so no "my
+  purchase history" screen yet — that's part of Phase 2).
