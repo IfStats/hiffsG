@@ -25,6 +25,8 @@ const COLORS = {
 const FONT_IMPORT =
   "@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap');";
 
+const CATEGORIES = ["Festival", "Conference", "Concert", "Sports", "Comedy", "Nightlife", "Other"];
+
 function uid() {
   return Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
 }
@@ -90,6 +92,7 @@ function Nav({ tab, setTab, banner, profile, onLogin, onSignUp, onLogout }) {
   const tabs = [
     { id: "home", label: "Home" },
     { id: "browse", label: "Browse" },
+    ...(profile ? [{ id: "mytickets", label: "My Tickets" }] : []),
     ...(canManage ? [{ id: "planner", label: "Planner" }] : []),
     { id: "vendorportal", label: "List an event" },
     ...(canManage ? [{ id: "dashboard", label: "Dashboard" }] : []),
@@ -222,12 +225,35 @@ function Empty({ title, body, cta }) {
 }
 
 /* ---------------- Browse ---------------- */
-function EventCard({ ev, remaining, onSelect }) {
+function EventCard({ ev, remaining, onSelect, isFavorited, onToggleFavorite }) {
   const soldOut = remaining <= 0;
   return (
     <Stub accent={soldOut ? COLORS.red : COLORS.gold} bg={COLORS.paper} className="event-card">
-      <div style={{ padding: "20px 22px 16px 30px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
+      <div style={{ padding: "20px 22px 16px 30px", position: "relative" }}>
+        {onToggleFavorite && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleFavorite(ev);
+            }}
+            aria-label={isFavorited ? "Remove from favorites" : "Add to favorites"}
+            style={{
+              position: "absolute",
+              top: 14,
+              right: 14,
+              border: "none",
+              background: "transparent",
+              cursor: "pointer",
+              fontSize: 20,
+              lineHeight: 1,
+              color: isFavorited ? COLORS.red : COLORS.mute,
+              padding: 4,
+            }}
+          >
+            {isFavorited ? "♥" : "♡"}
+          </button>
+        )}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, paddingRight: onToggleFavorite ? 26 : 0 }}>
           <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 600, letterSpacing: 1, color: COLORS.goldDeep, textTransform: "uppercase" }}>
             {fmtDate(ev.date)} {ev.time ? `· ${ev.time}` : ""}
           </span>
@@ -238,7 +264,14 @@ function EventCard({ ev, remaining, onSelect }) {
         <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 28, color: COLORS.slate, marginTop: 4, lineHeight: 1.05 }}>
           {ev.name}
         </div>
-        <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13.5, color: COLORS.mute, marginTop: 2 }}>{ev.location}</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 2, flexWrap: "wrap" }}>
+          <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 13.5, color: COLORS.mute }}>{ev.location}</span>
+          {ev.category && (
+            <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 10.5, fontWeight: 700, color: COLORS.goldDeep, background: COLORS.paperDim, borderRadius: 12, padding: "2px 8px" }}>
+              {ev.category}
+            </span>
+          )}
+        </div>
         {ev.description && (
           <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13.5, color: COLORS.slate, marginTop: 10, lineHeight: 1.5 }}>
             {ev.description}
@@ -254,11 +287,10 @@ function EventCard({ ev, remaining, onSelect }) {
           </div>
         </div>
         <button
-          disabled={soldOut}
           onClick={() => onSelect(ev)}
           style={{
             border: "none",
-            cursor: soldOut ? "not-allowed" : "pointer",
+            cursor: "pointer",
             padding: "10px 18px",
             borderRadius: 8,
             fontFamily: "'Inter', sans-serif",
@@ -268,7 +300,7 @@ function EventCard({ ev, remaining, onSelect }) {
             color: soldOut ? COLORS.mute : COLORS.paper,
           }}
         >
-          {soldOut ? "Unavailable" : "Get tickets"}
+          {soldOut ? "View details" : "View & get tickets"}
         </button>
       </div>
     </Stub>
@@ -385,7 +417,7 @@ function TicketReceipt({ event, tickets, onClose }) {
   );
 }
 
-function EventGrid({ events, remainingFor, onSelect }) {
+function EventGrid({ events, remainingFor, onSelect, favoriteIds, onToggleFavorite }) {
   return (
     <div
       style={{
@@ -395,7 +427,14 @@ function EventGrid({ events, remainingFor, onSelect }) {
       }}
     >
       {events.map((ev) => (
-        <EventCard key={ev.id} ev={ev} remaining={remainingFor(ev)} onSelect={onSelect} />
+        <EventCard
+          key={ev.id}
+          ev={ev}
+          remaining={remainingFor(ev)}
+          onSelect={onSelect}
+          isFavorited={favoriteIds ? favoriteIds.has(ev.id) : false}
+          onToggleFavorite={onToggleFavorite}
+        />
       ))}
     </div>
   );
@@ -453,18 +492,68 @@ function Hero({ eventCount, onBrowse, onList }) {
   );
 }
 
-function Home({ events, tickets, onBrowse, onList }) {
+function Home({ events, tickets, onBrowse, onList, onOpenEvent, onBrowseCategory, favoriteIds, onToggleFavorite }) {
   const upcoming = events
     .slice()
     .sort((a, b) => (a.date || "").localeCompare(b.date || ""))
     .slice(0, 6);
 
+  const categories = [...new Set(events.map((e) => e.category).filter(Boolean))];
+
+  const soldFor = (ev) => tickets.filter((t) => t.eventId === ev.id).reduce((s, t) => s + t.qty, 0);
+  const trending = events
+    .filter((ev) => soldFor(ev) > 0)
+    .sort((a, b) => soldFor(b) - soldFor(a))
+    .slice(0, 6);
+
+  const sectionTitle = { fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, color: COLORS.paper, marginBottom: 16 };
+
   return (
     <div>
       <Hero eventCount={events.length} onBrowse={onBrowse} onList={onList} />
       <div style={{ padding: "8px 22px 60px", maxWidth: 1040, margin: "0 auto" }}>
+        {categories.length > 0 && (
+          <div style={{ marginBottom: 34 }}>
+            <div style={sectionTitle}>Popular categories</div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {categories.map((c) => (
+                <button
+                  key={c}
+                  onClick={() => onBrowseCategory(c)}
+                  style={{
+                    border: `1px solid rgba(251,247,239,0.25)`,
+                    background: "rgba(255,255,255,0.06)",
+                    color: COLORS.paper,
+                    borderRadius: 20,
+                    padding: "8px 16px",
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {trending.length > 0 && (
+          <div style={{ marginBottom: 34 }}>
+            <div style={sectionTitle}>Trending events</div>
+            <EventGrid
+              events={trending}
+              remainingFor={(ev) => remainingForEvent(ev, tickets)}
+              onSelect={onOpenEvent}
+              favoriteIds={favoriteIds}
+              onToggleFavorite={onToggleFavorite}
+            />
+          </div>
+        )}
+
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
-          <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, color: COLORS.paper }}>Happening soon</div>
+          <div style={sectionTitle}>Happening soon</div>
           {events.length > 6 && (
             <button onClick={onBrowse} style={{ ...ghostBtn, color: COLORS.paper, borderColor: "rgba(251,247,239,0.35)" }}>
               See all {events.length} events
@@ -482,60 +571,127 @@ function Home({ events, tickets, onBrowse, onList }) {
             }
           />
         ) : (
-          <EventGrid events={upcoming} remainingFor={(ev) => remainingForEvent(ev, tickets)} onSelect={onBrowse} />
+          <EventGrid
+            events={upcoming}
+            remainingFor={(ev) => remainingForEvent(ev, tickets)}
+            onSelect={onOpenEvent}
+            favoriteIds={favoriteIds}
+            onToggleFavorite={onToggleFavorite}
+          />
         )}
       </div>
     </div>
   );
 }
 
-function Browse({ events, tickets, onPurchased }) {
-  const [selected, setSelected] = useState(null);
-  const [receipt, setReceipt] = useState(null);
+const FILTER_PILL = (active) => ({
+  border: `1px solid ${active ? COLORS.gold : COLORS.line}`,
+  background: active ? COLORS.gold : "#fff",
+  color: active ? COLORS.inkDeep : COLORS.slate,
+  borderRadius: 20,
+  padding: "6px 14px",
+  fontFamily: "'Inter', sans-serif",
+  fontSize: 12.5,
+  fontWeight: 600,
+  cursor: "pointer",
+});
 
-  const remainingFor = (ev) => remainingForEvent(ev, tickets);
+function Browse({ events, tickets, onOpenEvent, favoriteIds, onToggleFavorite, category, onCategoryChange, profile }) {
+  const [search, setSearch] = useState("");
+  const [city, setCity] = useState("");
+  const [dateFilter, setDateFilter] = useState("all");
+  const [priceFilter, setPriceFilter] = useState("all");
+  const [onlyFavorites, setOnlyFavorites] = useState(false);
 
-  const handleConfirm = ({ name, email, qty }) => {
-    const created = Array.from({ length: qty }).map(() => ({
-      id: uid(),
-      eventId: selected.id,
-      buyerName: name,
-      buyerEmail: email,
-      qty: 1,
-      code: ticketCode(selected.name),
-      checkedIn: false,
-      purchasedAt: new Date().toISOString(),
-    }));
-    onPurchased(created);
-    setReceipt({ event: selected, tickets: created });
-    setSelected(null);
-  };
+  const cities = [...new Set(events.map((e) => e.city).filter(Boolean))].sort();
 
-  if (!events.length) {
-    return (
-      <Empty
-        title="No events on sale yet"
-        body="Once an organizer publishes an event from the Dashboard tab, it'll show up here."
-      />
-    );
-  }
+  const filtered = events
+    .filter((ev) => {
+      if (search.trim()) {
+        const q = search.trim().toLowerCase();
+        const hay = `${ev.name} ${ev.location} ${ev.city || ""} ${ev.category || ""}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      if (category && ev.category !== category) return false;
+      if (city && ev.city !== city) return false;
+      if (priceFilter === "free" && Number(ev.price) > 0) return false;
+      if (priceFilter === "paid" && Number(ev.price) <= 0) return false;
+      if (onlyFavorites && !(favoriteIds && favoriteIds.has(ev.id))) return false;
+      if (dateFilter !== "all" && ev.date) {
+        const d = new Date(ev.date + "T00:00:00");
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const diffDays = Math.round((d - today) / 86400000);
+        if (dateFilter === "today" && diffDays !== 0) return false;
+        if (dateFilter === "tomorrow" && diffDays !== 1) return false;
+        if (dateFilter === "weekend") {
+          const day = d.getDay();
+          if (!((day === 0 || day === 6) && diffDays >= 0 && diffDays <= 7)) return false;
+        }
+      }
+      return true;
+    })
+    .sort((a, b) => (a.date || "").localeCompare(b.date || ""));
 
   return (
     <div style={{ padding: "28px 22px 60px", maxWidth: 1040, margin: "0 auto" }}>
-      <EventGrid
-        events={events.slice().sort((a, b) => (a.date || "").localeCompare(b.date || ""))}
-        remainingFor={remainingFor}
-        onSelect={setSelected}
-      />
-      {selected && (
-        <PurchaseFlow
-          event={selected}
-          remaining={remainingFor(selected)}
-          onClose={() => setSelected(null)}
-          onConfirm={handleConfirm}
+      <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 24 }}>
+        <input
+          style={{ ...fieldInput, background: "#fff", fontSize: 14.5 }}
+          placeholder="Search events, venues, cities…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
         />
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <select style={{ ...fieldInput, width: "auto" }} value={category} onChange={(e) => onCategoryChange(e.target.value)}>
+            <option value="">All categories</option>
+            {CATEGORIES.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+          {cities.length > 0 && (
+            <select style={{ ...fieldInput, width: "auto" }} value={city} onChange={(e) => setCity(e.target.value)}>
+              <option value="">All cities</option>
+              {cities.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          )}
+        </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {[
+            ["all", "Any date"],
+            ["today", "Today"],
+            ["tomorrow", "Tomorrow"],
+            ["weekend", "This weekend"],
+          ].map(([id, label]) => (
+            <button key={id} onClick={() => setDateFilter(id)} style={FILTER_PILL(dateFilter === id)}>{label}</button>
+          ))}
+          <span style={{ width: 1, background: COLORS.line, margin: "0 2px" }} />
+          {[
+            ["all", "Any price"],
+            ["free", "Free"],
+            ["paid", "Paid"],
+          ].map(([id, label]) => (
+            <button key={id} onClick={() => setPriceFilter(id)} style={FILTER_PILL(priceFilter === id)}>{label}</button>
+          ))}
+          {profile && (
+            <>
+              <span style={{ width: 1, background: COLORS.line, margin: "0 2px" }} />
+              <button onClick={() => setOnlyFavorites((v) => !v)} style={FILTER_PILL(onlyFavorites)}>♥ Favorites</button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {filtered.length === 0 ? (
+        <Empty
+          title={events.length === 0 ? "No events on sale yet" : "No events match those filters"}
+          body={events.length === 0 ? "Once an organizer publishes an event, it'll show up here." : "Try widening your search or clearing a filter."}
+        />
+      ) : (
+        <EventGrid events={filtered} remainingFor={(ev) => remainingForEvent(ev, tickets)} onSelect={onOpenEvent} favoriteIds={favoriteIds} onToggleFavorite={onToggleFavorite} />
       )}
-      {receipt && <TicketReceipt event={receipt.event} tickets={receipt.tickets} onClose={() => setReceipt(null)} />}
     </div>
   );
 }
@@ -587,7 +743,7 @@ const overlayStyle = {
 };
 
 function EventForm({ onCreate, onCancel }) {
-  const [f, setF] = useState({ name: "", description: "", date: "", time: "", location: "", price: "", capacity: "" });
+  const [f, setF] = useState({ name: "", description: "", date: "", time: "", location: "", city: "", category: "", price: "", capacity: "" });
   const [error, setError] = useState("");
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
 
@@ -603,6 +759,8 @@ function EventForm({ onCreate, onCancel }) {
       date: f.date,
       time: f.time,
       location: f.location.trim(),
+      city: f.city.trim(),
+      category: f.category,
       price: Number(f.price) || 0,
       capacity: Math.max(1, Number(f.capacity) || 1),
     });
@@ -630,8 +788,21 @@ function EventForm({ onCreate, onCancel }) {
             <input style={fieldInput} type="time" value={f.time} onChange={set("time")} />
           </label>
           <label style={{ ...fieldLabel, gridColumn: "1 / -1" }}>
-            Location
+            Venue / location
             <input style={fieldInput} value={f.location} onChange={set("location")} placeholder="Accra Digital Centre" />
+          </label>
+          <label style={fieldLabel}>
+            City
+            <input style={fieldInput} value={f.city} onChange={set("city")} placeholder="Accra" />
+          </label>
+          <label style={fieldLabel}>
+            Category
+            <select style={fieldInput} value={f.category} onChange={set("category")}>
+              <option value="">Select…</option>
+              {CATEGORIES.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
           </label>
           <label style={fieldLabel}>
             Price (USD, 0 = free)
@@ -1183,7 +1354,7 @@ function Planner({ events, tasks, budgetItems, vendors, timeline, handlers }) {
 
 /* ---------------- Vendor portal ---------------- */
 function VendorSubmissionForm({ profile, onSubmit }) {
-  const [f, setF] = useState({ name: "", description: "", date: "", time: "", location: "", price: "", capacity: "" });
+  const [f, setF] = useState({ name: "", description: "", date: "", time: "", location: "", city: "", category: "", price: "", capacity: "" });
   const [error, setError] = useState("");
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
 
@@ -1202,12 +1373,14 @@ function VendorSubmissionForm({ profile, onSubmit }) {
       date: f.date,
       time: f.time,
       location: f.location.trim(),
+      city: f.city.trim(),
+      category: f.category,
       price: Number(f.price) || 0,
       capacity: Math.max(1, Number(f.capacity) || 1),
       status: "pending",
       submittedAt: new Date().toISOString(),
     });
-    setF({ name: "", description: "", date: "", time: "", location: "", price: "", capacity: "" });
+    setF({ name: "", description: "", date: "", time: "", location: "", city: "", category: "", price: "", capacity: "" });
     setError("");
   };
 
@@ -1231,8 +1404,21 @@ function VendorSubmissionForm({ profile, onSubmit }) {
           <input style={fieldInput} type="time" value={f.time} onChange={set("time")} />
         </label>
         <label style={{ ...fieldLabel, gridColumn: "1 / -1" }}>
-          Location
+          Venue / location
           <input style={fieldInput} value={f.location} onChange={set("location")} placeholder="Accra Digital Centre" />
+        </label>
+        <label style={fieldLabel}>
+          City
+          <input style={fieldInput} value={f.city} onChange={set("city")} placeholder="Accra" />
+        </label>
+        <label style={fieldLabel}>
+          Category
+          <select style={fieldInput} value={f.category} onChange={set("category")}>
+            <option value="">Select…</option>
+            {CATEGORIES.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
         </label>
         <label style={fieldLabel}>
           Price (USD, 0 = free)
@@ -1466,6 +1652,320 @@ function Admin({ profile }) {
   );
 }
 
+/* ---------------- Event detail page ---------------- */
+function Countdown({ date, time }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  if (!date) return null;
+  const target = new Date(`${date}T${time || "00:00"}:00`).getTime();
+  const diff = target - now;
+  if (isNaN(target)) return null;
+  if (diff <= 0) {
+    return <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 600, color: COLORS.mute }}>This event has started or passed.</div>;
+  }
+  const days = Math.floor(diff / 86400000);
+  const hours = Math.floor((diff % 86400000) / 3600000);
+  const mins = Math.floor((diff % 3600000) / 60000);
+  const secs = Math.floor((diff % 60000) / 1000);
+  return (
+    <div style={{ display: "flex", gap: 18 }}>
+      {[
+        ["Days", days],
+        ["Hrs", hours],
+        ["Min", mins],
+        ["Sec", secs],
+      ].map(([label, val]) => (
+        <div key={label} style={{ textAlign: "center" }}>
+          <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 28, color: COLORS.paper, lineHeight: 1 }}>{String(val).padStart(2, "0")}</div>
+          <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 10, color: COLORS.mute, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>{label}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function StarRow({ value, onRate, size = 18 }) {
+  return (
+    <div style={{ display: "flex", gap: 2 }}>
+      {[1, 2, 3, 4, 5].map((n) => (
+        <span
+          key={n}
+          onClick={onRate ? () => onRate(n) : undefined}
+          style={{ fontSize: size, color: n <= value ? COLORS.gold : COLORS.line, cursor: onRate ? "pointer" : "default", lineHeight: 1 }}
+        >
+          ★
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function ReviewsSection({ reviews, profile, onAddReview, onRequireLogin }) {
+  const [rating, setRating] = useState(0);
+  const [comment, setComment] = useState("");
+  const avg = reviews.length ? reviews.reduce((s, r) => s + r.rating, 0) / reviews.length : null;
+
+  const submit = () => {
+    if (!profile) return onRequireLogin();
+    if (rating === 0) return;
+    onAddReview({
+      id: uid(),
+      userId: profile.id,
+      authorName: profile.display_name,
+      rating,
+      comment: comment.trim(),
+      createdAt: new Date().toISOString(),
+    });
+    setRating(0);
+    setComment("");
+  };
+
+  return (
+    <div style={{ marginTop: 32 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+        <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: COLORS.paper }}>Reviews</div>
+        {avg !== null && (
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <StarRow value={Math.round(avg)} size={14} />
+            <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: COLORS.mute }}>
+              {avg.toFixed(1)} ({reviews.length})
+            </span>
+          </div>
+        )}
+      </div>
+
+      <Stub accent={COLORS.gold} bg={COLORS.paper} style={{ marginBottom: 16 }}>
+        <div style={{ padding: "18px 20px" }}>
+          <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12.5, fontWeight: 600, color: COLORS.slate, marginBottom: 8 }}>
+            {profile ? "Leave a review" : "Log in to leave a review"}
+          </div>
+          <StarRow value={rating} onRate={profile ? setRating : onRequireLogin} size={22} />
+          {profile && (
+            <>
+              <textarea
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                placeholder="What was it like?"
+                rows={2}
+                style={{ ...fieldInput, width: "100%", marginTop: 10, resize: "vertical", fontFamily: "'Inter', sans-serif" }}
+              />
+              <button onClick={submit} disabled={rating === 0} style={{ ...solidBtn, marginTop: 10 }}>Post review</button>
+            </>
+          )}
+        </div>
+      </Stub>
+
+      {reviews.length === 0 ? (
+        <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: COLORS.mute }}>No reviews yet.</div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {reviews.map((r) => (
+            <div key={r.id} style={{ background: COLORS.paper, borderRadius: 10, padding: "12px 16px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: 13, color: COLORS.slate }}>{r.authorName}</span>
+                <StarRow value={r.rating} size={13} />
+              </div>
+              {r.comment && <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: COLORS.slate, marginTop: 6 }}>{r.comment}</div>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function EventDetailPage({ event, tickets, reviews, relatedEvents, profile, isFavorited, onToggleFavorite, onBack, onPurchased, onAddReview, onOpenRelated, onRequireLogin }) {
+  const [purchasing, setPurchasing] = useState(false);
+  const [receipt, setReceipt] = useState(null);
+  const remaining = remainingForEvent(event, tickets);
+  const soldOut = remaining <= 0;
+  const evReviews = reviews.filter((r) => r.eventId === event.id);
+  const mapQuery = encodeURIComponent(`${event.location}${event.city ? ", " + event.city : ""}`);
+
+  const handleConfirm = ({ name, email, qty }) => {
+    const created = Array.from({ length: qty }).map(() => ({
+      id: uid(),
+      eventId: event.id,
+      buyerName: name,
+      buyerEmail: email,
+      buyerUserId: profile ? profile.id : null,
+      qty: 1,
+      code: ticketCode(event.name),
+      checkedIn: false,
+      purchasedAt: new Date().toISOString(),
+    }));
+    onPurchased(created);
+    setReceipt({ event, tickets: created });
+    setPurchasing(false);
+  };
+
+  const share = async () => {
+    const shareData = { title: event.name, text: `${event.name} — ${fmtDate(event.date)}`, url: window.location.href };
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData);
+      } catch {
+        /* user cancelled — fine */
+      }
+    } else {
+      try {
+        await navigator.clipboard.writeText(window.location.href);
+      } catch {
+        /* clipboard blocked — fine, button still visible */
+      }
+    }
+  };
+
+  return (
+    <div style={{ padding: "20px 22px 60px", maxWidth: 900, margin: "0 auto" }}>
+      <button onClick={onBack} style={{ ...ghostBtn, color: COLORS.paper, borderColor: "rgba(251,247,239,0.35)", marginBottom: 18 }}>
+        ← Back
+      </button>
+
+      <div
+        style={{
+          borderRadius: 16,
+          padding: "34px 30px",
+          background: `radial-gradient(circle at 15% 20%, rgba(108,75,255,0.4), transparent 50%), ${COLORS.inkDeep}`,
+          marginBottom: 24,
+        }}
+      >
+        {event.category && (
+          <span style={{ ...badge("rgba(255,255,255,0.1)", COLORS.gold), display: "inline-block", marginBottom: 10 }}>{event.category}</span>
+        )}
+        <h1 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 40, color: COLORS.paper, margin: "0 0 8px", lineHeight: 1.05 }}>{event.name}</h1>
+        <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, color: COLORS.mute }}>
+          {fmtDate(event.date)} {event.time ? `· ${event.time}` : ""} · {event.location}{event.city ? `, ${event.city}` : ""}
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 28 }}>
+        <div style={{ minWidth: 0 }}>
+          {event.description && (
+            <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 14.5, color: COLORS.paper, lineHeight: 1.7, marginTop: 0 }}>{event.description}</p>
+          )}
+          <div style={{ marginBottom: 24 }}>
+            <Countdown date={event.date} time={event.time} />
+          </div>
+          <a
+            href={`https://www.google.com/maps/search/?api=1&query=${mapQuery}`}
+            target="_blank"
+            rel="noreferrer"
+            style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 600, color: COLORS.gold, textDecoration: "none" }}
+          >
+            Open venue in Google Maps ↗
+          </a>
+          <ReviewsSection reviews={evReviews} profile={profile} onAddReview={(r) => onAddReview({ ...r, eventId: event.id })} onRequireLogin={onRequireLogin} />
+        </div>
+
+        <div style={{ minWidth: 0 }}>
+          <Stub accent={soldOut ? COLORS.red : COLORS.gold} bg={COLORS.paper} style={{ marginBottom: 14 }}>
+            <div style={{ padding: "20px 22px" }}>
+              <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 26, color: COLORS.slate }}>{money(event.price)}</div>
+              <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.mute, marginBottom: 14 }}>
+                {soldOut ? "Sold out" : `${remaining} of ${event.capacity} left`}
+              </div>
+              <button
+                disabled={soldOut}
+                onClick={() => setPurchasing(true)}
+                style={{
+                  ...solidBtn,
+                  width: "100%",
+                  padding: "11px 0",
+                  background: soldOut ? COLORS.paperDim : COLORS.ink,
+                  color: soldOut ? COLORS.mute : COLORS.paper,
+                  cursor: soldOut ? "not-allowed" : "pointer",
+                }}
+              >
+                {soldOut ? "Unavailable" : "Get tickets"}
+              </button>
+            </div>
+          </Stub>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              onClick={() => (profile ? onToggleFavorite(event) : onRequireLogin())}
+              style={{ ...ghostBtn, flex: 1, color: COLORS.paper, borderColor: "rgba(251,247,239,0.35)" }}
+            >
+              {isFavorited ? "♥ Favorited" : "♡ Favorite"}
+            </button>
+            <button onClick={share} style={{ ...ghostBtn, flex: 1, color: COLORS.paper, borderColor: "rgba(251,247,239,0.35)" }}>
+              Share
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {relatedEvents.length > 0 && (
+        <div style={{ marginTop: 44 }}>
+          <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: COLORS.paper, marginBottom: 14 }}>Related events</div>
+          <EventGrid events={relatedEvents} remainingFor={(ev) => remainingForEvent(ev, tickets)} onSelect={onOpenRelated} />
+        </div>
+      )}
+
+      {purchasing && <PurchaseFlow event={event} remaining={remaining} onClose={() => setPurchasing(false)} onConfirm={handleConfirm} />}
+      {receipt && <TicketReceipt event={receipt.event} tickets={receipt.tickets} onClose={() => setReceipt(null)} />}
+    </div>
+  );
+}
+
+/* ---------------- My tickets (purchase history) ---------------- */
+function MyTickets({ profile, events, tickets }) {
+  const mine = tickets
+    .filter((t) => t.buyerUserId === profile.id)
+    .sort((a, b) => (b.purchasedAt || "").localeCompare(a.purchasedAt || ""));
+
+  if (mine.length === 0) {
+    return (
+      <div style={{ padding: "28px 22px 60px", maxWidth: 720, margin: "0 auto" }}>
+        <Empty title="No tickets yet" body="Tickets you buy while logged in will show up here." />
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ padding: "28px 22px 60px", maxWidth: 640, margin: "0 auto" }}>
+      <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, color: COLORS.paper, marginBottom: 18 }}>Your tickets</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        {mine.map((t) => {
+          const ev = events.find((e) => e.id === t.eventId);
+          return (
+            <Stub key={t.id} accent={t.checkedIn ? "#5C8A3A" : COLORS.gold} bg={COLORS.paper}>
+              <div style={{ padding: "18px 20px 12px 28px" }}>
+                <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, fontWeight: 700, color: COLORS.goldDeep, textTransform: "uppercase" }}>
+                  {t.checkedIn ? "Checked in" : "Ready to use"}
+                </div>
+                <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: COLORS.slate }}>{ev ? ev.name : "Event no longer available"}</div>
+                {ev && (
+                  <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: COLORS.mute }}>
+                    {fmtDate(ev.date)} {ev.time ? `· ${ev.time}` : ""} · {ev.location}
+                  </div>
+                )}
+              </div>
+              <Perforation notchBg={COLORS.inkDeep} />
+              <div style={{ padding: "14px 20px 18px 28px", display: "flex", alignItems: "center", gap: 14 }}>
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(t.code)}`}
+                  alt={`QR code for ticket ${t.code}`}
+                  width={76}
+                  height={76}
+                  style={{ borderRadius: 6, border: `1px solid ${COLORS.line}` }}
+                />
+                <div>
+                  <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: COLORS.mute }}>Ticket code</div>
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 15, fontWeight: 600, color: COLORS.slate }}>{t.code}</div>
+                </div>
+              </div>
+            </Stub>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 /* ---------------- App shell ---------------- */
 export default function App() {
   const [tab, setTab] = useState("home");
@@ -1480,6 +1980,10 @@ export default function App() {
   const [banner, setBanner] = useState(null);
   const [profile, setProfile] = useState(null);
   const [authModal, setAuthModal] = useState(null); // null | 'login' | 'signup'
+  const [reviews, setReviews] = useState([]);
+  const [favoriteIds, setFavoriteIds] = useState(new Set());
+  const [viewingEventId, setViewingEventId] = useState(null);
+  const [browseCategory, setBrowseCategory] = useState("");
 
   const flash = (text, type = "ok") => {
     setBanner({ text, type });
@@ -1551,9 +2055,26 @@ export default function App() {
       setVendors(await safely(db.vendors.list));
       setTimeline(await safely(db.timeline.list));
       setSubmissions(await safely(db.submissions.list));
+      setReviews(await safely(db.reviews.list));
       setLoading(false);
     })();
   }, []);
+
+  useEffect(() => {
+    (async () => {
+      if (!profile) {
+        setFavoriteIds(new Set());
+        return;
+      }
+      try {
+        const ids = await db.favorites.list(profile.id);
+        setFavoriteIds(new Set(ids));
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error(err);
+      }
+    })();
+  }, [profile]);
 
   const handleCreate = async (ev) => {
     const withOwner = { ...ev, organizerId: profile ? profile.id : null };
@@ -1607,6 +2128,8 @@ export default function App() {
       date: s.date,
       time: s.time,
       location: s.location,
+      city: s.city,
+      category: s.category,
       price: s.price,
       capacity: s.capacity,
       organizerId: s.submittedBy || null,
@@ -1651,10 +2174,50 @@ export default function App() {
       setVendors([]);
       setTimeline([]);
       setSubmissions([]);
+      setReviews([]);
+      setFavoriteIds(new Set());
       flash("All data cleared.");
     } catch (err) {
       fail(err);
     }
+  };
+
+  const requireLogin = () => setAuthModal("login");
+
+  const handleToggleFavorite = async (ev) => {
+    if (!profile) return requireLogin();
+    const isFav = favoriteIds.has(ev.id);
+    try {
+      if (isFav) {
+        await db.favorites.remove(profile.id, ev.id);
+        setFavoriteIds((prev) => {
+          const next = new Set(prev);
+          next.delete(ev.id);
+          return next;
+        });
+      } else {
+        await db.favorites.add(profile.id, ev.id);
+        setFavoriteIds((prev) => new Set(prev).add(ev.id));
+      }
+    } catch (err) {
+      fail(err);
+    }
+  };
+
+  const handleAddReview = async (r) => {
+    try {
+      await db.reviews.create(r);
+      setReviews([r, ...reviews]);
+      flash("Review posted.");
+    } catch (err) {
+      fail(err);
+    }
+  };
+
+  const handleOpenEvent = (ev) => setViewingEventId(ev.id);
+  const handleBrowseCategory = (cat) => {
+    setBrowseCategory(cat);
+    setTab("browse");
   };
 
   const plannerHandlers = {
@@ -1800,10 +2363,55 @@ export default function App() {
       )}
       {loading ? (
         <div style={{ color: COLORS.paper, textAlign: "center", padding: 80, fontFamily: "'Inter', sans-serif" }}>Loading Dictaz…</div>
+      ) : viewingEventId ? (
+        (() => {
+          const ev = events.find((e) => e.id === viewingEventId);
+          if (!ev) return <Empty title="Event not found" body="It may have been removed." />;
+          const related = events.filter((e) => e.id !== ev.id && e.category && e.category === ev.category).slice(0, 3);
+          return (
+            <EventDetailPage
+              event={ev}
+              tickets={tickets}
+              reviews={reviews}
+              relatedEvents={related}
+              profile={profile}
+              isFavorited={favoriteIds.has(ev.id)}
+              onToggleFavorite={handleToggleFavorite}
+              onBack={() => setViewingEventId(null)}
+              onPurchased={handlePurchased}
+              onAddReview={handleAddReview}
+              onOpenRelated={(rev) => setViewingEventId(rev.id)}
+              onRequireLogin={requireLogin}
+            />
+          );
+        })()
       ) : (
         <>
-          {tab === "home" && <Home events={events} tickets={tickets} onBrowse={() => setTab("browse")} onList={() => setTab("vendorportal")} />}
-          {tab === "browse" && <Browse events={events} tickets={tickets} onPurchased={handlePurchased} />}
+          {tab === "home" && (
+            <Home
+              events={events}
+              tickets={tickets}
+              onBrowse={() => setTab("browse")}
+              onList={() => setTab("vendorportal")}
+              onOpenEvent={handleOpenEvent}
+              onBrowseCategory={handleBrowseCategory}
+              favoriteIds={favoriteIds}
+              onToggleFavorite={handleToggleFavorite}
+            />
+          )}
+          {tab === "browse" && (
+            <Browse
+              events={events}
+              tickets={tickets}
+              onOpenEvent={handleOpenEvent}
+              favoriteIds={favoriteIds}
+              onToggleFavorite={handleToggleFavorite}
+              category={browseCategory}
+              onCategoryChange={setBrowseCategory}
+              profile={profile}
+            />
+          )}
+          {tab === "mytickets" && profile && <MyTickets profile={profile} events={events} tickets={tickets} />}
           {["planner", "dashboard", "checkin"].includes(tab) && !profile && (
             <Empty title="Log in required" body="This area is for organizers and admins. Log in with an approved account to continue." />
           )}
