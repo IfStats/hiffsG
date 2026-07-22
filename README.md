@@ -49,13 +49,56 @@ By default, Supabase requires confirming your email before you can log in.
 For quick local testing you can turn this off: **Authentication → Providers
 → Email → toggle off "Confirm email"**. Leave it on for a real launch.
 
+## 1b. Set up real payments (Paystack)
+
+Paid tickets go through Paystack. This needs three things: a database
+table, a piece of server code (a Supabase Edge Function) that verifies the
+payment, and your Paystack keys wired into the right places.
+
+1. Run `supabase/phase3_payments.sql` in the SQL editor (after phase1/phase2).
+   This adds an `orders` table and links `tickets` back to the order that
+   paid for them.
+2. **Install the Supabase CLI** if you don't have it:
+   ```bash
+   npm install -g supabase
+   ```
+3. **Log in and link this project:**
+   ```bash
+   supabase login
+   supabase link --project-ref your-project-ref
+   ```
+   (`your-project-ref` is in your Supabase project URL, or under
+   Settings → General.)
+4. **Set your Paystack secret key as a function secret** — this is the
+   `sk_...` key from your Paystack dashboard. It must never appear in
+   client code, an `.env` file, or a Vercel env var — only here:
+   ```bash
+   supabase secrets set PAYSTACK_SECRET_KEY=sk_live_your_secret_key
+   ```
+5. **Deploy the verification function:**
+   ```bash
+   supabase functions deploy verify-payment
+   ```
+6. Add your Paystack **public** key (`pk_...`) to `.env` and to Vercel's
+   environment variables (see the next two sections) as
+   `VITE_PAYSTACK_PUBLIC_KEY` — this one *is* safe to expose in the browser.
+
+**Why a server-side function at all?** The browser can't be trusted to
+report "the payment succeeded" — anyone could fake that with dev tools.
+`verify-payment` re-checks the transaction directly with Paystack's API
+using the secret key, and only then issues the tickets, using Supabase's
+service-role key (which bypasses row-level security on purpose — ticket
+issuance for a paid order is only allowed to happen from this function,
+never directly from the client).
+
 ## 2. Add your credentials
 
 1. Copy `.env.example` to a new file named `.env`.
-2. Fill in the two values from step 1:
+2. Fill in the values from the steps above:
    ```
    VITE_SUPABASE_URL=https://your-project-ref.supabase.co
    VITE_SUPABASE_ANON_KEY=your-anon-public-key
+   VITE_PAYSTACK_PUBLIC_KEY=pk_test_your_public_key
    ```
    (`.env` is already git-ignored, so it won't get committed.)
 
@@ -79,14 +122,15 @@ updates a simple `git push`.)
 ### Option A: Vercel
 1. Go to https://vercel.com/new and import your GitHub repo.
 2. Framework preset: **Vite** (should auto-detect).
-3. Under **Environment Variables**, add `VITE_SUPABASE_URL` and
-   `VITE_SUPABASE_ANON_KEY` with the same values as your `.env`.
+3. Under **Environment Variables**, add `VITE_SUPABASE_URL`,
+   `VITE_SUPABASE_ANON_KEY`, and `VITE_PAYSTACK_PUBLIC_KEY` with the same
+   values as your `.env`.
 4. Click **Deploy**. You'll get a public `*.vercel.app` link.
 
 ### Option B: Netlify
 1. Go to https://app.netlify.com → **Add new site → Import an existing project**.
 2. Connect the repo. Build command: `npm run build`. Publish directory: `dist`.
-3. Under **Site settings → Environment variables**, add the same two
+3. Under **Site settings → Environment variables**, add the same three
    `VITE_...` values.
 4. Deploy. You'll get a public `*.netlify.app` link.
 
@@ -105,17 +149,25 @@ next one if this grows past the demo stage.
 
 ## What still isn't real
 
-- **Payments** are still mocked — "buying" a ticket just writes a record,
-  no money moves. Wiring up real payments needs a payment processor
-  (e.g. Stripe or, better for Ghana, Paystack/Flutterwave for Mobile Money)
-  and, ideally, a small server-side function so card/payment details never
-  touch the browser directly. This is Phase 3.
+- ~~Payments are mocked~~ — fixed for card/Mobile Money via Paystack.
+  **Flutterwave isn't wired up** (you said Paystack first); it can be
+  added the same way later.
+- **No refund flow yet** — an attendee can't request one, and there's no
+  admin screen to process one. Paystack supports refunds via their API;
+  this just isn't built into the app yet.
+- **No Paystack webhook as a fallback** — verification currently happens
+  only when the browser calls `verify-payment` right after the popup
+  closes. If someone pays and then closes the tab before that call
+  completes, the payment could succeed on Paystack's side without a
+  ticket ever being issued. Adding a webhook (Paystack → a second Edge
+  Function) as a backup path is the standard fix — worth doing before a
+  real launch.
+- **Currency is hardcoded to GHS** — fine for Ghana-only for now; a
+  multi-currency event would need the currency to come from the event
+  itself.
 - ~~Vendor sign-in is name+email only~~ — fixed: submitting an event now
   requires a real account (Supabase Auth), and the identity is pulled from
   your profile automatically.
-- **Ticket purchase is still guest checkout only** — buying doesn't require
-  login. If you *are* logged in when you buy, the ticket is linked to your
-  account and shows up under "My Tickets"; guest purchases don't.
 - **No image uploads yet** — event pages use a styled gradient banner
   instead of a real hero image/gallery/video. Adding real image uploads
   needs Supabase Storage, which isn't wired up yet.

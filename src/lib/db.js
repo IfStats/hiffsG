@@ -292,7 +292,26 @@ export const db = {
     },
   },
 
-  /** Wipes every row in every table. Events cascade-delete their tickets/tasks/budget/vendors/timeline/favorites/reviews. */
+  orders: {
+    /** Creates the pending order that a payment gets attached to. */
+    async createPending(order) {
+      const { error } = await requireClient().from("orders").insert({
+        id: order.id,
+        event_id: order.eventId,
+        buyer_name: order.buyerName,
+        buyer_email: order.buyerEmail,
+        buyer_user_id: order.buyerUserId || null,
+        qty: order.qty,
+        amount: order.amount,
+        currency: order.currency || "GHS",
+        reference: order.id,
+        status: "pending",
+      });
+      if (error) throw error;
+    },
+  },
+
+  /** Wipes every row in every table. Events cascade-delete their tickets/tasks/budget/vendors/timeline/favorites/reviews/orders. */
   async resetAll() {
     const client = requireClient();
     const { error: e1 } = await client.from("events").delete().not("id", "is", null);

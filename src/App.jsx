@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { db } from "./lib/db.js";
 import { auth } from "./lib/auth.js";
+import { payments } from "./lib/payments.js";
 
 /* ---------------------------------------------------------
    DICTAZ — event ticketing, simplified.
@@ -360,11 +361,13 @@ function PurchaseFlow({ event, remaining, onClose, onConfirm }) {
               <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: COLORS.slate }}>
                 {money((Number(event.price) || 0) * (Number(qty) || 0))}
               </div>
-              <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: COLORS.mute }}>total, mock checkout</div>
+              <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: COLORS.mute }}>
+                {Number(event.price) > 0 ? "total — you'll pay via Paystack next" : "free — no payment needed"}
+              </div>
             </div>
             <div style={{ display: "flex", gap: 8 }}>
               <button onClick={onClose} style={ghostBtn}>Cancel</button>
-              <button onClick={submit} style={solidBtn}>Confirm order</button>
+              <button onClick={submit} style={solidBtn}>{Number(event.price) > 0 ? "Continue to payment" : "Confirm order"}</button>
             </div>
           </div>
         </Stub>
@@ -1777,29 +1780,66 @@ function ReviewsSection({ reviews, profile, onAddReview, onRequireLogin }) {
   );
 }
 
-function EventDetailPage({ event, tickets, reviews, relatedEvents, profile, isFavorited, onToggleFavorite, onBack, onPurchased, onAddReview, onOpenRelated, onRequireLogin }) {
+function EventDetailPage({ event, tickets, reviews, relatedEvents, profile, isFavorited, onToggleFavorite, onBack, onPurchased, onTicketsIssuedByServer, onAddReview, onOpenRelated, onRequireLogin }) {
   const [purchasing, setPurchasing] = useState(false);
+  const [paying, setPaying] = useState(false);
+  const [payError, setPayError] = useState("");
   const [receipt, setReceipt] = useState(null);
   const remaining = remainingForEvent(event, tickets);
   const soldOut = remaining <= 0;
   const evReviews = reviews.filter((r) => r.eventId === event.id);
   const mapQuery = encodeURIComponent(`${event.location}${event.city ? ", " + event.city : ""}`);
 
-  const handleConfirm = ({ name, email, qty }) => {
-    const created = Array.from({ length: qty }).map(() => ({
+  const handleConfirm = async ({ name, email, qty }) => {
+    setPurchasing(false);
+    setPayError("");
+
+    // Free event: issue tickets immediately, same as before.
+    if (!event.price || Number(event.price) <= 0) {
+      const created = Array.from({ length: qty }).map(() => ({
+        id: uid(),
+        eventId: event.id,
+        buyerName: name,
+        buyerEmail: email,
+        buyerUserId: profile ? profile.id : null,
+        qty: 1,
+        code: ticketCode(event.name),
+        checkedIn: false,
+        purchasedAt: new Date().toISOString(),
+      }));
+      onPurchased(created);
+      setReceipt({ event, tickets: created });
+      return;
+    }
+
+    // Paid event: create a pending order, run it through Paystack, then let
+    // the server-side Edge Function verify and issue the tickets — never
+    // trust the browser alone for "payment succeeded".
+    if (!payments.isConfigured) {
+      setPayError("Payments aren't set up yet — the site owner needs to add a Paystack public key.");
+      return;
+    }
+    setPaying(true);
+    const order = {
       id: uid(),
       eventId: event.id,
       buyerName: name,
       buyerEmail: email,
       buyerUserId: profile ? profile.id : null,
-      qty: 1,
-      code: ticketCode(event.name),
-      checkedIn: false,
-      purchasedAt: new Date().toISOString(),
-    }));
-    onPurchased(created);
-    setReceipt({ event, tickets: created });
-    setPurchasing(false);
+      qty,
+      amount: Number(event.price) * qty,
+      currency: "GHS",
+    };
+    try {
+      await db.orders.createPending(order);
+      const issuedTickets = await payments.payAndIssueTickets(order);
+      onTicketsIssuedByServer(issuedTickets);
+      setReceipt({ event, tickets: issuedTickets });
+    } catch (err) {
+      setPayError(err.message || "Payment didn't go through — you weren't charged for anything that failed.");
+    } finally {
+      setPaying(false);
+    }
   };
 
   const share = async () => {
@@ -1880,7 +1920,7 @@ function EventDetailPage({ event, tickets, reviews, relatedEvents, profile, isFa
                   cursor: soldOut ? "not-allowed" : "pointer",
                 }}
               >
-                {soldOut ? "Unavailable" : "Get tickets"}
+                {soldOut ? "Unavailable" : Number(event.price) > 0 ? "Pay & get tickets" : "Get free tickets"}
               </button>
             </div>
           </Stub>
@@ -1906,6 +1946,27 @@ function EventDetailPage({ event, tickets, reviews, relatedEvents, profile, isFa
       )}
 
       {purchasing && <PurchaseFlow event={event} remaining={remaining} onClose={() => setPurchasing(false)} onConfirm={handleConfirm} />}
+      {paying && (
+        <div style={overlayStyle}>
+          <div style={{ background: COLORS.paper, borderRadius: 14, padding: "28px 32px", textAlign: "center", maxWidth: 320 }}>
+            <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: COLORS.slate, marginBottom: 6 }}>Processing payment…</div>
+            <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: COLORS.mute }}>Complete the payment in the Paystack window — don't close this tab.</div>
+          </div>
+        </div>
+      )}
+      {payError && (
+        <div style={overlayStyle} onClick={() => setPayError("")}>
+          <div style={{ maxWidth: 360 }} onClick={(e) => e.stopPropagation()}>
+            <Stub accent={COLORS.red} bg={COLORS.paper}>
+              <div style={{ padding: "22px 24px", textAlign: "center" }}>
+                <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: COLORS.slate, marginBottom: 8 }}>Payment didn't complete</div>
+                <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: COLORS.mute, marginBottom: 16 }}>{payError}</div>
+                <button onClick={() => setPayError("")} style={solidBtn}>OK</button>
+              </div>
+            </Stub>
+          </div>
+        </div>
+      )}
       {receipt && <TicketReceipt event={receipt.event} tickets={receipt.tickets} onClose={() => setReceipt(null)} />}
     </div>
   );
@@ -2108,6 +2169,25 @@ export default function App() {
     } catch (err) {
       fail(err);
     }
+  };
+  // Paid tickets are inserted server-side by the verify-payment Edge
+  // Function (it uses the service-role key) — this just syncs local state,
+  // no DB write here.
+  const handleTicketsIssuedByServer = (created) => {
+    if (!created || created.length === 0) return;
+    setTickets((prev) => [...prev, ...created.map((r) => ({
+      id: r.id,
+      eventId: r.event_id,
+      buyerName: r.buyer_name,
+      buyerEmail: r.buyer_email,
+      buyerUserId: r.buyer_user_id,
+      qty: r.qty,
+      code: r.code,
+      checkedIn: r.checked_in,
+      checkedInAt: r.checked_in_at,
+      purchasedAt: r.purchased_at,
+    }))]);
+    flash(`${created.length} ticket${created.length > 1 ? "s" : ""} confirmed.`);
   };
   const handleAddSubmission = async (s) => {
     try {
@@ -2379,6 +2459,7 @@ export default function App() {
               onToggleFavorite={handleToggleFavorite}
               onBack={() => setViewingEventId(null)}
               onPurchased={handlePurchased}
+              onTicketsIssuedByServer={handleTicketsIssuedByServer}
               onAddReview={handleAddReview}
               onOpenRelated={(rev) => setViewingEventId(rev.id)}
               onRequireLogin={requireLogin}
