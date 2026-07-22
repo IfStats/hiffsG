@@ -21,12 +21,20 @@ steps in order — none of them require writing code.
    - Real row-level-security policies replacing the old wide-open ones —
      browsing events stays public, but creating/editing/deleting is now
      scoped to the owning organizer or an admin
-5. **Make your own account an admin.** Sign up in the running app once
+5. Run `supabase/phase2_attendee_core.sql` next (new query, paste, run).
+   This adds:
+   - `category` and `city` on events (powers search/filter and category
+     browsing)
+   - `buyer_user_id` on tickets (so purchases while logged in show up
+     under "My Tickets")
+   - A `favorites` table (private per user) and a `reviews` table (public
+     to read, writable only by signed-in users, as themselves)
+6. **Make your own account an admin.** Sign up in the running app once
    (any account works), then in Supabase go to **Table Editor → profiles**,
    find your row, and change `role` from `attendee` to `admin`. That's the
    only way to get the first admin — from then on, you can approve
    organizers from the app's Admin tab.
-6. Go to **Settings → API**. You'll need two values from this page:
+7. Go to **Settings → API**. You'll need two values from this page:
    - **Project URL**
    - **anon public** key
 
@@ -101,10 +109,19 @@ next one if this grows past the demo stage.
   no money moves. Wiring up real payments needs a payment processor
   (e.g. Stripe or, better for Ghana, Paystack/Flutterwave for Mobile Money)
   and, ideally, a small server-side function so card/payment details never
-  touch the browser directly.
+  touch the browser directly. This is Phase 3.
 - ~~Vendor sign-in is name+email only~~ — fixed: submitting an event now
   requires a real account (Supabase Auth), and the identity is pulled from
   your profile automatically.
-- **Ticket purchase is still guest checkout only** — no login required to
-  buy, and tickets aren't yet linked to attendee accounts (so no "my
-  purchase history" screen yet — that's part of Phase 2).
+- **Ticket purchase is still guest checkout only** — buying doesn't require
+  login. If you *are* logged in when you buy, the ticket is linked to your
+  account and shows up under "My Tickets"; guest purchases don't.
+- **No image uploads yet** — event pages use a styled gradient banner
+  instead of a real hero image/gallery/video. Adding real image uploads
+  needs Supabase Storage, which isn't wired up yet.
+- **Related events** are matched by category only — no "nearby" (needs
+  geolocation) or "recommended for you" (needs a real recommendation
+  approach) yet.
+- **No Apple/Google Wallet passes, no email reminders** — those need
+  additional services (a pass-signing service, an email/SMS provider) on
+  top of what's here.

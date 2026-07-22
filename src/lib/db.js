@@ -11,6 +11,8 @@ const eventToRow = (e) => ({
   price: e.price,
   capacity: e.capacity,
   organizer_id: e.organizerId || null,
+  category: e.category || null,
+  city: e.city || null,
 });
 const eventFromRow = (r) => ({
   id: r.id,
@@ -22,6 +24,8 @@ const eventFromRow = (r) => ({
   price: r.price,
   capacity: r.capacity,
   organizerId: r.organizer_id,
+  category: r.category,
+  city: r.city,
 });
 
 const ticketToRow = (t) => ({
@@ -29,6 +33,7 @@ const ticketToRow = (t) => ({
   event_id: t.eventId,
   buyer_name: t.buyerName,
   buyer_email: t.buyerEmail,
+  buyer_user_id: t.buyerUserId || null,
   qty: t.qty,
   code: t.code,
   checked_in: !!t.checkedIn,
@@ -40,6 +45,7 @@ const ticketFromRow = (r) => ({
   eventId: r.event_id,
   buyerName: r.buyer_name,
   buyerEmail: r.buyer_email,
+  buyerUserId: r.buyer_user_id,
   qty: r.qty,
   code: r.code,
   checkedIn: r.checked_in,
@@ -104,6 +110,25 @@ const submissionFromRow = (r) => ({
   status: r.status,
   submittedAt: r.submitted_at,
   submittedBy: r.submitted_by,
+});
+
+const reviewToRow = (r) => ({
+  id: r.id,
+  event_id: r.eventId,
+  user_id: r.userId,
+  author_name: r.authorName,
+  rating: r.rating,
+  comment: r.comment || "",
+  created_at: r.createdAt || new Date().toISOString(),
+});
+const reviewFromRow = (r) => ({
+  id: r.id,
+  eventId: r.event_id,
+  userId: r.user_id,
+  authorName: r.author_name,
+  rating: r.rating,
+  comment: r.comment,
+  createdAt: r.created_at,
 });
 
 /**
@@ -239,7 +264,35 @@ export const db = {
     },
   },
 
-  /** Wipes every row in every table. Events cascade-delete their tickets/tasks/budget/vendors/timeline. */
+  favorites: {
+    async list(userId) {
+      const { data, error } = await requireClient().from("favorites").select("event_id").eq("user_id", userId);
+      if (error) throw error;
+      return (data || []).map((r) => r.event_id);
+    },
+    async add(userId, eventId) {
+      const { error } = await requireClient().from("favorites").insert({ user_id: userId, event_id: eventId });
+      if (error) throw error;
+    },
+    async remove(userId, eventId) {
+      const { error } = await requireClient().from("favorites").delete().eq("user_id", userId).eq("event_id", eventId);
+      if (error) throw error;
+    },
+  },
+
+  reviews: {
+    async list() {
+      const { data, error } = await requireClient().from("reviews").select("*").order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data || []).map(reviewFromRow);
+    },
+    async create(r) {
+      const { error } = await requireClient().from("reviews").insert(reviewToRow(r));
+      if (error) throw error;
+    },
+  },
+
+  /** Wipes every row in every table. Events cascade-delete their tickets/tasks/budget/vendors/timeline/favorites/reviews. */
   async resetAll() {
     const client = requireClient();
     const { error: e1 } = await client.from("events").delete().not("id", "is", null);
