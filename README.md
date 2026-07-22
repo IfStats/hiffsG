@@ -49,6 +49,14 @@ By default, Supabase requires confirming your email before you can log in.
 For quick local testing you can turn this off: **Authentication → Providers
 → Email → toggle off "Confirm email"**. Leave it on for a real launch.
 
+## 1a. Public organizer pages
+
+Run `supabase/phase2b_organizer_profiles.sql` (after phase1/phase2). This
+adds bio/website/logo/cover fields to `profiles` and makes an **approved
+organizer's** profile publicly readable — needed for the "Hosted by…" link
+on each event and the organizer's own public page. Organizers can fill
+these in from Dashboard → "Your public organizer page".
+
 ## 1b. Set up real payments (Paystack)
 
 Paid tickets go through Paystack. This needs three things: a database
@@ -146,6 +154,13 @@ appropriate for a public-facing ticketing site handling real transactions.
 Getting there would mean adding real user accounts (Supabase Auth) and
 row-level policies scoped to each user/role — a bigger step, but a natural
 next one if this grows past the demo stage.
+
+**One specific note on the public organizer pages:** the policy in
+`phase2b_organizer_profiles.sql` makes an approved organizer's *entire*
+profile row publicly readable, including their email — not just the
+bio/website/logo fields the public page actually displays. Fine for now;
+if that becomes a concern, the fix is to split public fields into a
+separate table (or a Postgres view) instead of exposing the whole row.
 
 ## What still isn't real
 

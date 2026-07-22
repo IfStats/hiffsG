@@ -50,6 +50,17 @@ export const auth = {
     return data;
   },
 
+  /** Public — works for any approved organizer's id thanks to the public-read RLS policy. */
+  async getPublicOrganizerProfile(userId) {
+    return auth.getProfile(userId);
+  },
+
+  /** Organizer editing their own public page. RLS already restricts updates to your own row. */
+  async updateMyProfile(userId, fields) {
+    const { error } = await requireClient().from("profiles").update(fields).eq("id", userId);
+    if (error) throw error;
+  },
+
   /** Admin only (enforced by RLS): everyone waiting on organizer approval. */
   async listPendingOrganizers() {
     const { data, error } = await requireClient()

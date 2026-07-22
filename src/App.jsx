@@ -693,7 +693,32 @@ function Browse({ events, tickets, onOpenEvent, favoriteIds, onToggleFavorite, c
           body={events.length === 0 ? "Once an organizer publishes an event, it'll show up here." : "Try widening your search or clearing a filter."}
         />
       ) : (
-        <EventGrid events={filtered} remainingFor={(ev) => remainingForEvent(ev, tickets)} onSelect={onOpenEvent} favoriteIds={favoriteIds} onToggleFavorite={onToggleFavorite} />
+        (() => {
+          const todayStr = new Date().toISOString().slice(0, 10);
+          const happeningNow = filtered.filter((ev) => ev.date === todayStr);
+          const upcoming = filtered.filter((ev) => ev.date !== todayStr);
+          const gridProps = { remainingFor: (ev) => remainingForEvent(ev, tickets), onSelect: onOpenEvent, favoriteIds, onToggleFavorite };
+          return (
+            <>
+              {happeningNow.length > 0 && (
+                <div style={{ marginBottom: 34 }}>
+                  <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: COLORS.paper, marginBottom: 14 }}>
+                    Happening today
+                  </div>
+                  <EventGrid events={happeningNow} {...gridProps} />
+                </div>
+              )}
+              {upcoming.length > 0 && (
+                <div>
+                  {happeningNow.length > 0 && (
+                    <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: COLORS.paper, marginBottom: 14 }}>Upcoming</div>
+                  )}
+                  <EventGrid events={upcoming} {...gridProps} />
+                </div>
+              )}
+            </>
+          );
+        })()
       )}
     </div>
   );
@@ -826,7 +851,7 @@ function EventForm({ onCreate, onCancel }) {
   );
 }
 
-function Dashboard({ events, tickets, submissions, onCreate, onDelete, onResetData, onApproveSubmission, onRejectSubmission }) {
+function Dashboard({ events, tickets, submissions, onCreate, onDelete, onResetData, onApproveSubmission, onRejectSubmission, profile, onSaveOrganizerProfile }) {
   const [creating, setCreating] = useState(false);
 
   const soldFor = (id) => tickets.filter((t) => t.eventId === id).reduce((s, t) => s + t.qty, 0);
@@ -849,6 +874,10 @@ function Dashboard({ events, tickets, submissions, onCreate, onDelete, onResetDa
           <button onClick={() => setCreating(true)} style={solidBtn}>+ New event</button>
         )}
       </div>
+
+      {profile && profile.role === "organizer" && (
+        <OrganizerProfileEditor profile={profile} onSave={onSaveOrganizerProfile} />
+      )}
 
       {pending.length > 0 && (
         <Panel title="Vendor submissions awaiting review">
@@ -1780,7 +1809,7 @@ function ReviewsSection({ reviews, profile, onAddReview, onRequireLogin }) {
   );
 }
 
-function EventDetailPage({ event, tickets, reviews, relatedEvents, profile, isFavorited, onToggleFavorite, onBack, onPurchased, onTicketsIssuedByServer, onAddReview, onOpenRelated, onRequireLogin }) {
+function EventDetailPage({ event, tickets, reviews, relatedEvents, profile, isFavorited, onToggleFavorite, onBack, onPurchased, onTicketsIssuedByServer, onAddReview, onOpenRelated, onRequireLogin, organizer, onOpenOrganizer }) {
   const [purchasing, setPurchasing] = useState(false);
   const [paying, setPaying] = useState(false);
   const [payError, setPayError] = useState("");
@@ -1880,6 +1909,14 @@ function EventDetailPage({ event, tickets, reviews, relatedEvents, profile, isFa
         <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, color: COLORS.mute }}>
           {fmtDate(event.date)} {event.time ? `· ${event.time}` : ""} · {event.location}{event.city ? `, ${event.city}` : ""}
         </div>
+        {organizer && (
+          <button
+            onClick={() => onOpenOrganizer(event.organizerId)}
+            style={{ border: "none", background: "transparent", cursor: "pointer", padding: 0, marginTop: 10, fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 600, color: COLORS.gold }}
+          >
+            Hosted by {organizer.display_name} →
+          </button>
+        )}
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 28 }}>
@@ -2027,6 +2064,122 @@ function MyTickets({ profile, events, tickets }) {
   );
 }
 
+/* ---------------- Organizer public page ---------------- */
+function OrganizerPage({ organizer, events, tickets, onBack, onOpenEvent }) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const isUpcoming = (ev) => {
+    const d = new Date(ev.date + "T00:00:00");
+    return d >= today;
+  };
+  const upcoming = events.filter((e) => e.organizerId === organizer.id && isUpcoming(e)).sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+  const past = events.filter((e) => e.organizerId === organizer.id && !isUpcoming(e)).sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+
+  return (
+    <div style={{ padding: "20px 22px 60px", maxWidth: 900, margin: "0 auto" }}>
+      <button onClick={onBack} style={{ ...ghostBtn, color: COLORS.paper, borderColor: "rgba(251,247,239,0.35)", marginBottom: 18 }}>
+        ← Back
+      </button>
+
+      <div
+        style={{
+          borderRadius: 16,
+          overflow: "hidden",
+          background: organizer.cover_url ? `url(${organizer.cover_url}) center/cover` : `radial-gradient(circle at 20% 20%, rgba(108,75,255,0.4), transparent 55%), ${COLORS.inkDeep}`,
+          padding: "36px 30px",
+          marginBottom: 24,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          {organizer.logo_url ? (
+            <img src={organizer.logo_url} alt={organizer.display_name} width={64} height={64} style={{ borderRadius: 14, objectFit: "cover", border: `2px solid ${COLORS.gold}` }} />
+          ) : (
+            <div style={{ width: 64, height: 64, borderRadius: 14, background: COLORS.gold, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Bebas Neue', sans-serif", fontSize: 26, color: COLORS.inkDeep }}>
+              {(organizer.display_name || "?").charAt(0).toUpperCase()}
+            </div>
+          )}
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <h1 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 30, color: COLORS.paper, margin: 0 }}>{organizer.display_name}</h1>
+              <span style={{ ...badge(COLORS.gold, COLORS.inkDeep), fontSize: 10 }}>✓ Verified organizer</span>
+            </div>
+            {organizer.website && (
+              <a href={organizer.website} target="_blank" rel="noreferrer" style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: COLORS.gold, textDecoration: "none" }}>
+                {organizer.website.replace(/^https?:\/\//, "")} ↗
+              </a>
+            )}
+          </div>
+        </div>
+        {organizer.bio && <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, color: COLORS.mute, lineHeight: 1.6, marginTop: 16, marginBottom: 0, maxWidth: 560 }}>{organizer.bio}</p>}
+      </div>
+
+      <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: COLORS.paper, marginBottom: 14 }}>
+        Upcoming events ({upcoming.length})
+      </div>
+      {upcoming.length === 0 ? (
+        <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: COLORS.mute, marginBottom: 34 }}>Nothing on sale right now.</div>
+      ) : (
+        <div style={{ marginBottom: 34 }}>
+          <EventGrid events={upcoming} remainingFor={(ev) => remainingForEvent(ev, tickets)} onSelect={onOpenEvent} />
+        </div>
+      )}
+
+      {past.length > 0 && (
+        <>
+          <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: COLORS.paper, marginBottom: 14 }}>Past events ({past.length})</div>
+          <EventGrid events={past} remainingFor={(ev) => remainingForEvent(ev, tickets)} onSelect={onOpenEvent} />
+        </>
+      )}
+    </div>
+  );
+}
+
+function OrganizerProfileEditor({ profile, onSave }) {
+  const [f, setF] = useState({
+    bio: profile.bio || "",
+    website: profile.website || "",
+    logo_url: profile.logo_url || "",
+    cover_url: profile.cover_url || "",
+  });
+  const [saved, setSaved] = useState(false);
+  const set = (k) => (e) => {
+    setF({ ...f, [k]: e.target.value });
+    setSaved(false);
+  };
+
+  return (
+    <Panel title="Your public organizer page">
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
+        <label style={{ ...fieldLabel, gridColumn: "1 / -1" }}>
+          Bio
+          <textarea value={f.bio} onChange={set("bio")} rows={2} style={{ ...fieldInput, resize: "vertical", fontFamily: "'Inter', sans-serif" }} placeholder="Tell attendees who you are…" />
+        </label>
+        <label style={fieldLabel}>
+          Website
+          <input style={fieldInput} value={f.website} onChange={set("website")} placeholder="https://…" />
+        </label>
+        <label style={fieldLabel}>
+          Logo image URL
+          <input style={fieldInput} value={f.logo_url} onChange={set("logo_url")} placeholder="https://…" />
+        </label>
+        <label style={{ ...fieldLabel, gridColumn: "1 / -1" }}>
+          Cover image URL
+          <input style={fieldInput} value={f.cover_url} onChange={set("cover_url")} placeholder="https://…" />
+        </label>
+      </div>
+      <button
+        onClick={() => {
+          onSave(f);
+          setSaved(true);
+        }}
+        style={{ ...solidBtn, marginTop: 14 }}
+      >
+        {saved ? "Saved ✓" : "Save"}
+      </button>
+    </Panel>
+  );
+}
+
 /* ---------------- App shell ---------------- */
 export default function App() {
   const [tab, setTab] = useState("home");
@@ -2044,6 +2197,8 @@ export default function App() {
   const [reviews, setReviews] = useState([]);
   const [favoriteIds, setFavoriteIds] = useState(new Set());
   const [viewingEventId, setViewingEventId] = useState(null);
+  const [viewingOrganizerId, setViewingOrganizerId] = useState(null);
+  const [organizerCache, setOrganizerCache] = useState({});
   const [browseCategory, setBrowseCategory] = useState("");
 
   const flash = (text, type = "ok") => {
@@ -2136,6 +2291,36 @@ export default function App() {
       }
     })();
   }, [profile]);
+
+  // Lazily fetch + cache whichever organizer's public profile is currently
+  // needed — either the "Hosted by" line on an event detail page, or a
+  // full organizer page someone navigated to directly.
+  useEffect(() => {
+    const viewedEvent = viewingEventId ? events.find((e) => e.id === viewingEventId) : null;
+    const neededId = viewingOrganizerId || (viewedEvent && viewedEvent.organizerId) || null;
+    if (!neededId || organizerCache[neededId]) return;
+    (async () => {
+      try {
+        const org = await auth.getPublicOrganizerProfile(neededId);
+        if (org) setOrganizerCache((prev) => ({ ...prev, [neededId]: org }));
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error(err);
+      }
+    })();
+  }, [viewingEventId, viewingOrganizerId, events, organizerCache]);
+
+  const handleSaveOrganizerProfile = async (fields) => {
+    try {
+      await auth.updateMyProfile(profile.id, fields);
+      const updated = { ...profile, ...fields };
+      setProfile(updated);
+      setOrganizerCache((prev) => ({ ...prev, [profile.id]: updated }));
+      flash("Profile saved.");
+    } catch (err) {
+      fail(err);
+    }
+  };
 
   const handleCreate = async (ev) => {
     const withOwner = { ...ev, organizerId: profile ? profile.id : null };
@@ -2443,6 +2628,21 @@ export default function App() {
       )}
       {loading ? (
         <div style={{ color: COLORS.paper, textAlign: "center", padding: 80, fontFamily: "'Inter', sans-serif" }}>Loading Dictaz…</div>
+      ) : viewingOrganizerId ? (
+        organizerCache[viewingOrganizerId] ? (
+          <OrganizerPage
+            organizer={organizerCache[viewingOrganizerId]}
+            events={events}
+            tickets={tickets}
+            onBack={() => setViewingOrganizerId(null)}
+            onOpenEvent={(ev) => {
+              setViewingOrganizerId(null);
+              setViewingEventId(ev.id);
+            }}
+          />
+        ) : (
+          <div style={{ color: COLORS.paper, textAlign: "center", padding: 80, fontFamily: "'Inter', sans-serif" }}>Loading organizer…</div>
+        )
       ) : viewingEventId ? (
         (() => {
           const ev = events.find((e) => e.id === viewingEventId);
@@ -2463,6 +2663,8 @@ export default function App() {
               onAddReview={handleAddReview}
               onOpenRelated={(rev) => setViewingEventId(rev.id)}
               onRequireLogin={requireLogin}
+              organizer={ev.organizerId ? organizerCache[ev.organizerId] : null}
+              onOpenOrganizer={(id) => setViewingOrganizerId(id)}
             />
           );
         })()
@@ -2525,6 +2727,8 @@ export default function App() {
               onResetData={handleReset}
               onApproveSubmission={handleApproveSubmission}
               onRejectSubmission={handleRejectSubmission}
+              profile={profile}
+              onSaveOrganizerProfile={handleSaveOrganizerProfile}
             />
           )}
           {tab === "checkin" && profile && (() => {
