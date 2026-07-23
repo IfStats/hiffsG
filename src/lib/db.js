@@ -13,10 +13,7 @@ const eventToRow = (e) => ({
   organizer_id: e.organizerId || null,
   category: e.category || null,
   city: e.city || null,
-<<<<<<< HEAD
   image_url: e.imageUrl || null,
-=======
->>>>>>> 3f3abb4f3331ef6d0698a901e7103bba21efdc54
 });
 const eventFromRow = (r) => ({
   id: r.id,
@@ -30,10 +27,7 @@ const eventFromRow = (r) => ({
   organizerId: r.organizer_id,
   category: r.category,
   city: r.city,
-<<<<<<< HEAD
   imageUrl: r.image_url,
-=======
->>>>>>> 3f3abb4f3331ef6d0698a901e7103bba21efdc54
 });
 
 const ticketToRow = (t) => ({
@@ -98,16 +92,11 @@ const submissionToRow = (s) => ({
   date: s.date,
   time: s.time || null,
   location: s.location,
-<<<<<<< HEAD
   city: s.city || null,
   category: s.category || null,
   price: s.price,
   capacity: s.capacity,
   image_url: s.imageUrl || null,
-=======
-  price: s.price,
-  capacity: s.capacity,
->>>>>>> 3f3abb4f3331ef6d0698a901e7103bba21efdc54
   status: s.status,
   submitted_at: s.submittedAt || new Date().toISOString(),
   submitted_by: s.submittedBy || null,
@@ -121,16 +110,11 @@ const submissionFromRow = (r) => ({
   date: r.date,
   time: r.time,
   location: r.location,
-<<<<<<< HEAD
   city: r.city,
   category: r.category,
   price: r.price,
   capacity: r.capacity,
   imageUrl: r.image_url,
-=======
-  price: r.price,
-  capacity: r.capacity,
->>>>>>> 3f3abb4f3331ef6d0698a901e7103bba21efdc54
   status: r.status,
   submittedAt: r.submitted_at,
   submittedBy: r.submitted_by,
@@ -316,7 +300,6 @@ export const db = {
     },
   },
 
-<<<<<<< HEAD
   orders: {
     /** Creates the pending order that a payment gets attached to. */
     async createPending(order) {
@@ -337,9 +320,6 @@ export const db = {
   },
 
   /** Wipes every row in every table. Events cascade-delete their tickets/tasks/budget/vendors/timeline/favorites/reviews/orders. */
-=======
-  /** Wipes every row in every table. Events cascade-delete their tickets/tasks/budget/vendors/timeline/favorites/reviews. */
->>>>>>> 3f3abb4f3331ef6d0698a901e7103bba21efdc54
   async resetAll() {
     const client = requireClient();
     const { error: e1 } = await client.from("events").delete().not("id", "is", null);
