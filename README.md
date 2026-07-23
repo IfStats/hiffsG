@@ -57,6 +57,24 @@ organizer's** profile publicly readable — needed for the "Hosted by…" link
 on each event and the organizer's own public page. Organizers can fill
 these in from Dashboard → "Your public organizer page".
 
+## 1a2. Real event thumbnail uploads
+
+Run `supabase/phase2c_event_images.sql` (after phase1/phase2). This:
+- Creates a public Supabase Storage bucket called `event-images`
+- Adds an `image_url` column to `events` (and, fixing a gap from an
+  earlier phase, `category`/`city`/`image_url` to `submissions` — the
+  submission form was already collecting those, but the table never had
+  the columns, so they were silently dropped on insert)
+- Sets storage policies so anyone can *view* images, but only approved
+  organizers/admins can *upload* them
+
+Once that's run, both the "New event" form (Dashboard) and "Submit a new
+event" form (vendor portal) show an upload button instead of a URL field —
+pick a JPG/PNG/WEBP/GIF up to 5MB, it uploads straight to Storage, and the
+public URL gets saved with the event automatically. The image shows up on
+the event card, the event detail page banner, and stays attached if a
+vendor submission gets approved into a real event.
+
 ## 1b. Set up real payments (Paystack)
 
 Paid tickets go through Paystack. This needs three things: a database
@@ -183,9 +201,10 @@ separate table (or a Postgres view) instead of exposing the whole row.
 - ~~Vendor sign-in is name+email only~~ — fixed: submitting an event now
   requires a real account (Supabase Auth), and the identity is pulled from
   your profile automatically.
-- **No image uploads yet** — event pages use a styled gradient banner
-  instead of a real hero image/gallery/video. Adding real image uploads
-  needs Supabase Storage, which isn't wired up yet.
+- ~~No image uploads~~ — fixed for event thumbnails (real Supabase Storage
+  upload, shown on cards and the detail page banner). Organizer logo/cover
+  images are still URL-paste fields, not uploads — same treatment could be
+  added there if useful. No gallery or video support yet either.
 - **Related events** are matched by category only — no "nearby" (needs
   geolocation) or "recommended for you" (needs a real recommendation
   approach) yet.

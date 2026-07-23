@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { db } from "./lib/db.js";
 import { auth } from "./lib/auth.js";
 import { payments } from "./lib/payments.js";
+import { uploads } from "./lib/uploads.js";
 
 /* ---------------------------------------------------------
    DICTAZ — event ticketing, simplified.
@@ -230,6 +231,11 @@ function EventCard({ ev, remaining, onSelect, isFavorited, onToggleFavorite }) {
   const soldOut = remaining <= 0;
   return (
     <Stub accent={soldOut ? COLORS.red : COLORS.gold} bg={COLORS.paper} className="event-card">
+      {ev.imageUrl && (
+        <div style={{ height: 140, borderRadius: "14px 14px 0 0", overflow: "hidden" }}>
+          <img src={ev.imageUrl} alt={ev.name} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+        </div>
+      )}
       <div style={{ padding: "20px 22px 16px 30px", position: "relative" }}>
         {onToggleFavorite && (
           <button
@@ -770,8 +776,61 @@ const overlayStyle = {
   zIndex: 50,
 };
 
+function ImageUpload({ value, onChange, label = "Event thumbnail" }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const inputRef = useRef(null);
+
+  const pick = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = ""; // allow re-picking the same file later
+    if (!file) return;
+    setError("");
+    setBusy(true);
+    try {
+      const url = await uploads.uploadEventImage(file);
+      onChange(url);
+    } catch (err) {
+      setError(err.message || "Upload failed.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div style={{ gridColumn: "1 / -1" }}>
+      <div style={{ ...fieldLabel, marginBottom: 6 }}>{label}</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div
+          style={{
+            width: 88,
+            height: 88,
+            borderRadius: 10,
+            border: `1px dashed ${COLORS.line}`,
+            background: value ? `url(${value}) center/cover` : COLORS.paperDim,
+            flexShrink: 0,
+          }}
+        />
+        <div>
+          <button type="button" onClick={() => inputRef.current && inputRef.current.click()} disabled={busy} style={ghostBtn}>
+            {busy ? "Uploading…" : value ? "Replace image" : "Upload image"}
+          </button>
+          {value && !busy && (
+            <button type="button" onClick={() => onChange("")} style={{ ...ghostBtn, marginLeft: 8, color: COLORS.red, borderColor: COLORS.red }}>
+              Remove
+            </button>
+          )}
+          <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={pick} style={{ display: "none" }} />
+          <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: COLORS.mute, marginTop: 6 }}>JPG, PNG, WEBP, or GIF · up to 5MB</div>
+          {error && <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.red, marginTop: 4, fontWeight: 600 }}>{error}</div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function EventForm({ onCreate, onCancel }) {
-  const [f, setF] = useState({ name: "", description: "", date: "", time: "", location: "", city: "", category: "", price: "", capacity: "" });
+  const [f, setF] = useState({ name: "", description: "", date: "", time: "", location: "", city: "", category: "", price: "", capacity: "", imageUrl: "" });
   const [error, setError] = useState("");
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
 
@@ -791,6 +850,7 @@ function EventForm({ onCreate, onCancel }) {
       category: f.category,
       price: Number(f.price) || 0,
       capacity: Math.max(1, Number(f.capacity) || 1),
+      imageUrl: f.imageUrl,
     });
   };
 
@@ -799,6 +859,7 @@ function EventForm({ onCreate, onCancel }) {
       <div style={{ padding: "22px 26px" }}>
         <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: COLORS.slate, marginBottom: 14 }}>New event</div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
+          <ImageUpload value={f.imageUrl} onChange={(url) => setF({ ...f, imageUrl: url })} />
           <label style={{ ...fieldLabel, gridColumn: "1 / -1" }}>
             Event name
             <input style={fieldInput} value={f.name} onChange={set("name")} placeholder="Dictaz Product Showcase" />
@@ -833,7 +894,7 @@ function EventForm({ onCreate, onCancel }) {
             </select>
           </label>
           <label style={fieldLabel}>
-            Price (USD, 0 = free)
+            Price (GHS, 0 = free)
             <input style={fieldInput} type="number" min={0} value={f.price} onChange={set("price")} placeholder="0" />
           </label>
           <label style={fieldLabel}>
@@ -1386,7 +1447,7 @@ function Planner({ events, tasks, budgetItems, vendors, timeline, handlers }) {
 
 /* ---------------- Vendor portal ---------------- */
 function VendorSubmissionForm({ profile, onSubmit }) {
-  const [f, setF] = useState({ name: "", description: "", date: "", time: "", location: "", city: "", category: "", price: "", capacity: "" });
+  const [f, setF] = useState({ name: "", description: "", date: "", time: "", location: "", city: "", category: "", price: "", capacity: "", imageUrl: "" });
   const [error, setError] = useState("");
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
 
@@ -1409,16 +1470,18 @@ function VendorSubmissionForm({ profile, onSubmit }) {
       category: f.category,
       price: Number(f.price) || 0,
       capacity: Math.max(1, Number(f.capacity) || 1),
+      imageUrl: f.imageUrl,
       status: "pending",
       submittedAt: new Date().toISOString(),
     });
-    setF({ name: "", description: "", date: "", time: "", location: "", city: "", category: "", price: "", capacity: "" });
+    setF({ name: "", description: "", date: "", time: "", location: "", city: "", category: "", price: "", capacity: "", imageUrl: "" });
     setError("");
   };
 
   return (
     <Panel title="Submit a new event for review">
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
+        <ImageUpload value={f.imageUrl} onChange={(url) => setF({ ...f, imageUrl: url })} />
         <label style={{ ...fieldLabel, gridColumn: "1 / -1" }}>
           Event name
           <input style={fieldInput} value={f.name} onChange={set("name")} placeholder="Golden Bean Coffee Pop-Up" />
@@ -1453,7 +1516,7 @@ function VendorSubmissionForm({ profile, onSubmit }) {
           </select>
         </label>
         <label style={fieldLabel}>
-          Price (USD, 0 = free)
+          Price (GHS, 0 = free)
           <input style={fieldInput} type="number" min={0} value={f.price} onChange={set("price")} placeholder="0" />
         </label>
         <label style={fieldLabel}>
@@ -1898,7 +1961,9 @@ function EventDetailPage({ event, tickets, reviews, relatedEvents, profile, isFa
         style={{
           borderRadius: 16,
           padding: "34px 30px",
-          background: `radial-gradient(circle at 15% 20%, rgba(108,75,255,0.4), transparent 50%), ${COLORS.inkDeep}`,
+          background: event.imageUrl
+            ? `linear-gradient(rgba(13,10,26,0.55), rgba(13,10,26,0.75)), url(${event.imageUrl}) center/cover`
+            : `radial-gradient(circle at 15% 20%, rgba(108,75,255,0.4), transparent 50%), ${COLORS.inkDeep}`,
           marginBottom: 24,
         }}
       >
@@ -2397,6 +2462,7 @@ export default function App() {
       category: s.category,
       price: s.price,
       capacity: s.capacity,
+      imageUrl: s.imageUrl,
       organizerId: s.submittedBy || null,
     };
     try {

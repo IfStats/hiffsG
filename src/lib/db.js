@@ -13,6 +13,7 @@ const eventToRow = (e) => ({
   organizer_id: e.organizerId || null,
   category: e.category || null,
   city: e.city || null,
+  image_url: e.imageUrl || null,
 });
 const eventFromRow = (r) => ({
   id: r.id,
@@ -26,6 +27,7 @@ const eventFromRow = (r) => ({
   organizerId: r.organizer_id,
   category: r.category,
   city: r.city,
+  imageUrl: r.image_url,
 });
 
 const ticketToRow = (t) => ({
@@ -90,8 +92,11 @@ const submissionToRow = (s) => ({
   date: s.date,
   time: s.time || null,
   location: s.location,
+  city: s.city || null,
+  category: s.category || null,
   price: s.price,
   capacity: s.capacity,
+  image_url: s.imageUrl || null,
   status: s.status,
   submitted_at: s.submittedAt || new Date().toISOString(),
   submitted_by: s.submittedBy || null,
@@ -105,8 +110,11 @@ const submissionFromRow = (r) => ({
   date: r.date,
   time: r.time,
   location: r.location,
+  city: r.city,
+  category: r.category,
   price: r.price,
   capacity: r.capacity,
+  imageUrl: r.image_url,
   status: r.status,
   submittedAt: r.submitted_at,
   submittedBy: r.submitted_by,
