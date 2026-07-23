@@ -49,6 +49,7 @@ By default, Supabase requires confirming your email before you can log in.
 For quick local testing you can turn this off: **Authentication → Providers
 → Email → toggle off "Confirm email"**. Leave it on for a real launch.
 
+<<<<<<< HEAD
 ## 1a. Public organizer pages
 
 Run `supabase/phase2b_organizer_profiles.sql` (after phase1/phase2). This
@@ -125,6 +126,15 @@ never directly from the client).
    VITE_SUPABASE_URL=https://your-project-ref.supabase.co
    VITE_SUPABASE_ANON_KEY=your-anon-public-key
    VITE_PAYSTACK_PUBLIC_KEY=pk_test_your_public_key
+=======
+## 2. Add your credentials
+
+1. Copy `.env.example` to a new file named `.env`.
+2. Fill in the two values from step 1:
+   ```
+   VITE_SUPABASE_URL=https://your-project-ref.supabase.co
+   VITE_SUPABASE_ANON_KEY=your-anon-public-key
+>>>>>>> 3f3abb4f3331ef6d0698a901e7103bba21efdc54
    ```
    (`.env` is already git-ignored, so it won't get committed.)
 
@@ -148,15 +158,24 @@ updates a simple `git push`.)
 ### Option A: Vercel
 1. Go to https://vercel.com/new and import your GitHub repo.
 2. Framework preset: **Vite** (should auto-detect).
+<<<<<<< HEAD
 3. Under **Environment Variables**, add `VITE_SUPABASE_URL`,
    `VITE_SUPABASE_ANON_KEY`, and `VITE_PAYSTACK_PUBLIC_KEY` with the same
    values as your `.env`.
+=======
+3. Under **Environment Variables**, add `VITE_SUPABASE_URL` and
+   `VITE_SUPABASE_ANON_KEY` with the same values as your `.env`.
+>>>>>>> 3f3abb4f3331ef6d0698a901e7103bba21efdc54
 4. Click **Deploy**. You'll get a public `*.vercel.app` link.
 
 ### Option B: Netlify
 1. Go to https://app.netlify.com → **Add new site → Import an existing project**.
 2. Connect the repo. Build command: `npm run build`. Publish directory: `dist`.
+<<<<<<< HEAD
 3. Under **Site settings → Environment variables**, add the same three
+=======
+3. Under **Site settings → Environment variables**, add the same two
+>>>>>>> 3f3abb4f3331ef6d0698a901e7103bba21efdc54
    `VITE_...` values.
 4. Deploy. You'll get a public `*.netlify.app` link.
 
@@ -173,6 +192,7 @@ Getting there would mean adding real user accounts (Supabase Auth) and
 row-level policies scoped to each user/role — a bigger step, but a natural
 next one if this grows past the demo stage.
 
+<<<<<<< HEAD
 **One specific note on the public organizer pages:** the policy in
 `phase2b_organizer_profiles.sql` makes an approved organizer's *entire*
 profile row publicly readable, including their email — not just the
@@ -205,6 +225,24 @@ separate table (or a Postgres view) instead of exposing the whole row.
   upload, shown on cards and the detail page banner). Organizer logo/cover
   images are still URL-paste fields, not uploads — same treatment could be
   added there if useful. No gallery or video support yet either.
+=======
+## What still isn't real
+
+- **Payments** are still mocked — "buying" a ticket just writes a record,
+  no money moves. Wiring up real payments needs a payment processor
+  (e.g. Stripe or, better for Ghana, Paystack/Flutterwave for Mobile Money)
+  and, ideally, a small server-side function so card/payment details never
+  touch the browser directly. This is Phase 3.
+- ~~Vendor sign-in is name+email only~~ — fixed: submitting an event now
+  requires a real account (Supabase Auth), and the identity is pulled from
+  your profile automatically.
+- **Ticket purchase is still guest checkout only** — buying doesn't require
+  login. If you *are* logged in when you buy, the ticket is linked to your
+  account and shows up under "My Tickets"; guest purchases don't.
+- **No image uploads yet** — event pages use a styled gradient banner
+  instead of a real hero image/gallery/video. Adding real image uploads
+  needs Supabase Storage, which isn't wired up yet.
+>>>>>>> 3f3abb4f3331ef6d0698a901e7103bba21efdc54
 - **Related events** are matched by category only — no "nearby" (needs
   geolocation) or "recommended for you" (needs a real recommendation
   approach) yet.

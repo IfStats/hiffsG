@@ -2,3 +2,9 @@ node_modules
 dist
 .env
 .DS_Store
+<<<<<<< HEAD
+=======
+
+.vercel
+.env*
+>>>>>>> 3f3abb4f3331ef6d0698a901e7103bba21efdc54

@@ -50,6 +50,7 @@ export const auth = {
     return data;
   },
 
+<<<<<<< HEAD
   /** Public — works for any approved organizer's id thanks to the public-read RLS policy. */
   async getPublicOrganizerProfile(userId) {
     return auth.getProfile(userId);
@@ -61,6 +62,8 @@ export const auth = {
     if (error) throw error;
   },
 
+=======
+>>>>>>> 3f3abb4f3331ef6d0698a901e7103bba21efdc54
   /** Admin only (enforced by RLS): everyone waiting on organizer approval. */
   async listPendingOrganizers() {
     const { data, error } = await requireClient()
