@@ -1,16 +1,9 @@
-<<<<<<< HEAD
-import React, { useState, useEffect, useRef } from "react";
+﻿import React, { useState, useEffect, useRef } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { db } from "./lib/db.js";
 import { auth } from "./lib/auth.js";
 import { payments } from "./lib/payments.js";
 import { uploads } from "./lib/uploads.js";
-=======
-import React, { useState, useEffect } from "react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
-import { db } from "./lib/db.js";
-import { auth } from "./lib/auth.js";
->>>>>>> 3f3abb4f3331ef6d0698a901e7103bba21efdc54
 
 /* ---------------------------------------------------------
    DICTAZ — event ticketing, simplified.
@@ -238,14 +231,11 @@ function EventCard({ ev, remaining, onSelect, isFavorited, onToggleFavorite }) {
   const soldOut = remaining <= 0;
   return (
     <Stub accent={soldOut ? COLORS.red : COLORS.gold} bg={COLORS.paper} className="event-card">
-<<<<<<< HEAD
       {ev.imageUrl && (
         <div style={{ height: 140, borderRadius: "14px 14px 0 0", overflow: "hidden" }}>
           <img src={ev.imageUrl} alt={ev.name} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
         </div>
       )}
-=======
->>>>>>> 3f3abb4f3331ef6d0698a901e7103bba21efdc54
       <div style={{ padding: "20px 22px 16px 30px", position: "relative" }}>
         {onToggleFavorite && (
           <button
@@ -377,7 +367,6 @@ function PurchaseFlow({ event, remaining, onClose, onConfirm }) {
               <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: COLORS.slate }}>
                 {money((Number(event.price) || 0) * (Number(qty) || 0))}
               </div>
-<<<<<<< HEAD
               <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: COLORS.mute }}>
                 {Number(event.price) > 0 ? "total — you'll pay via Paystack next" : "free — no payment needed"}
               </div>
@@ -385,13 +374,6 @@ function PurchaseFlow({ event, remaining, onClose, onConfirm }) {
             <div style={{ display: "flex", gap: 8 }}>
               <button onClick={onClose} style={ghostBtn}>Cancel</button>
               <button onClick={submit} style={solidBtn}>{Number(event.price) > 0 ? "Continue to payment" : "Confirm order"}</button>
-=======
-              <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: COLORS.mute }}>total, mock checkout</div>
-            </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button onClick={onClose} style={ghostBtn}>Cancel</button>
-              <button onClick={submit} style={solidBtn}>Confirm order</button>
->>>>>>> 3f3abb4f3331ef6d0698a901e7103bba21efdc54
             </div>
           </div>
         </Stub>
@@ -717,7 +699,6 @@ function Browse({ events, tickets, onOpenEvent, favoriteIds, onToggleFavorite, c
           body={events.length === 0 ? "Once an organizer publishes an event, it'll show up here." : "Try widening your search or clearing a filter."}
         />
       ) : (
-<<<<<<< HEAD
         (() => {
           const todayStr = new Date().toISOString().slice(0, 10);
           const happeningNow = filtered.filter((ev) => ev.date === todayStr);
@@ -744,9 +725,6 @@ function Browse({ events, tickets, onOpenEvent, favoriteIds, onToggleFavorite, c
             </>
           );
         })()
-=======
-        <EventGrid events={filtered} remainingFor={(ev) => remainingForEvent(ev, tickets)} onSelect={onOpenEvent} favoriteIds={favoriteIds} onToggleFavorite={onToggleFavorite} />
->>>>>>> 3f3abb4f3331ef6d0698a901e7103bba21efdc54
       )}
     </div>
   );
@@ -798,7 +776,6 @@ const overlayStyle = {
   zIndex: 50,
 };
 
-<<<<<<< HEAD
 function ImageUpload({ value, onChange, label = "Event thumbnail" }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -854,10 +831,6 @@ function ImageUpload({ value, onChange, label = "Event thumbnail" }) {
 
 function EventForm({ onCreate, onCancel }) {
   const [f, setF] = useState({ name: "", description: "", date: "", time: "", location: "", city: "", category: "", price: "", capacity: "", imageUrl: "" });
-=======
-function EventForm({ onCreate, onCancel }) {
-  const [f, setF] = useState({ name: "", description: "", date: "", time: "", location: "", city: "", category: "", price: "", capacity: "" });
->>>>>>> 3f3abb4f3331ef6d0698a901e7103bba21efdc54
   const [error, setError] = useState("");
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
 
@@ -877,10 +850,7 @@ function EventForm({ onCreate, onCancel }) {
       category: f.category,
       price: Number(f.price) || 0,
       capacity: Math.max(1, Number(f.capacity) || 1),
-<<<<<<< HEAD
       imageUrl: f.imageUrl,
-=======
->>>>>>> 3f3abb4f3331ef6d0698a901e7103bba21efdc54
     });
   };
 
@@ -889,10 +859,7 @@ function EventForm({ onCreate, onCancel }) {
       <div style={{ padding: "22px 26px" }}>
         <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: COLORS.slate, marginBottom: 14 }}>New event</div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
-<<<<<<< HEAD
           <ImageUpload value={f.imageUrl} onChange={(url) => setF({ ...f, imageUrl: url })} />
-=======
->>>>>>> 3f3abb4f3331ef6d0698a901e7103bba21efdc54
           <label style={{ ...fieldLabel, gridColumn: "1 / -1" }}>
             Event name
             <input style={fieldInput} value={f.name} onChange={set("name")} placeholder="Dictaz Product Showcase" />
@@ -927,11 +894,7 @@ function EventForm({ onCreate, onCancel }) {
             </select>
           </label>
           <label style={fieldLabel}>
-<<<<<<< HEAD
             Price (GHS, 0 = free)
-=======
-            Price (USD, 0 = free)
->>>>>>> 3f3abb4f3331ef6d0698a901e7103bba21efdc54
             <input style={fieldInput} type="number" min={0} value={f.price} onChange={set("price")} placeholder="0" />
           </label>
           <label style={fieldLabel}>
@@ -949,11 +912,7 @@ function EventForm({ onCreate, onCancel }) {
   );
 }
 
-<<<<<<< HEAD
 function Dashboard({ events, tickets, submissions, onCreate, onDelete, onResetData, onApproveSubmission, onRejectSubmission, profile, onSaveOrganizerProfile }) {
-=======
-function Dashboard({ events, tickets, submissions, onCreate, onDelete, onResetData, onApproveSubmission, onRejectSubmission }) {
->>>>>>> 3f3abb4f3331ef6d0698a901e7103bba21efdc54
   const [creating, setCreating] = useState(false);
 
   const soldFor = (id) => tickets.filter((t) => t.eventId === id).reduce((s, t) => s + t.qty, 0);
@@ -977,13 +936,10 @@ function Dashboard({ events, tickets, submissions, onCreate, onDelete, onResetDa
         )}
       </div>
 
-<<<<<<< HEAD
       {profile && profile.role === "organizer" && (
         <OrganizerProfileEditor profile={profile} onSave={onSaveOrganizerProfile} />
       )}
 
-=======
->>>>>>> 3f3abb4f3331ef6d0698a901e7103bba21efdc54
       {pending.length > 0 && (
         <Panel title="Vendor submissions awaiting review">
           {pending.map((s) => (
@@ -1491,11 +1447,7 @@ function Planner({ events, tasks, budgetItems, vendors, timeline, handlers }) {
 
 /* ---------------- Vendor portal ---------------- */
 function VendorSubmissionForm({ profile, onSubmit }) {
-<<<<<<< HEAD
   const [f, setF] = useState({ name: "", description: "", date: "", time: "", location: "", city: "", category: "", price: "", capacity: "", imageUrl: "" });
-=======
-  const [f, setF] = useState({ name: "", description: "", date: "", time: "", location: "", city: "", category: "", price: "", capacity: "" });
->>>>>>> 3f3abb4f3331ef6d0698a901e7103bba21efdc54
   const [error, setError] = useState("");
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
 
@@ -1518,28 +1470,18 @@ function VendorSubmissionForm({ profile, onSubmit }) {
       category: f.category,
       price: Number(f.price) || 0,
       capacity: Math.max(1, Number(f.capacity) || 1),
-<<<<<<< HEAD
       imageUrl: f.imageUrl,
       status: "pending",
       submittedAt: new Date().toISOString(),
     });
     setF({ name: "", description: "", date: "", time: "", location: "", city: "", category: "", price: "", capacity: "", imageUrl: "" });
-=======
-      status: "pending",
-      submittedAt: new Date().toISOString(),
-    });
-    setF({ name: "", description: "", date: "", time: "", location: "", city: "", category: "", price: "", capacity: "" });
->>>>>>> 3f3abb4f3331ef6d0698a901e7103bba21efdc54
     setError("");
   };
 
   return (
     <Panel title="Submit a new event for review">
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
-<<<<<<< HEAD
         <ImageUpload value={f.imageUrl} onChange={(url) => setF({ ...f, imageUrl: url })} />
-=======
->>>>>>> 3f3abb4f3331ef6d0698a901e7103bba21efdc54
         <label style={{ ...fieldLabel, gridColumn: "1 / -1" }}>
           Event name
           <input style={fieldInput} value={f.name} onChange={set("name")} placeholder="Golden Bean Coffee Pop-Up" />
@@ -1574,11 +1516,7 @@ function VendorSubmissionForm({ profile, onSubmit }) {
           </select>
         </label>
         <label style={fieldLabel}>
-<<<<<<< HEAD
           Price (GHS, 0 = free)
-=======
-          Price (USD, 0 = free)
->>>>>>> 3f3abb4f3331ef6d0698a901e7103bba21efdc54
           <input style={fieldInput} type="number" min={0} value={f.price} onChange={set("price")} placeholder="0" />
         </label>
         <label style={fieldLabel}>
@@ -1934,22 +1872,16 @@ function ReviewsSection({ reviews, profile, onAddReview, onRequireLogin }) {
   );
 }
 
-<<<<<<< HEAD
 function EventDetailPage({ event, tickets, reviews, relatedEvents, profile, isFavorited, onToggleFavorite, onBack, onPurchased, onTicketsIssuedByServer, onAddReview, onOpenRelated, onRequireLogin, organizer, onOpenOrganizer }) {
   const [purchasing, setPurchasing] = useState(false);
   const [paying, setPaying] = useState(false);
   const [payError, setPayError] = useState("");
-=======
-function EventDetailPage({ event, tickets, reviews, relatedEvents, profile, isFavorited, onToggleFavorite, onBack, onPurchased, onAddReview, onOpenRelated, onRequireLogin }) {
-  const [purchasing, setPurchasing] = useState(false);
->>>>>>> 3f3abb4f3331ef6d0698a901e7103bba21efdc54
   const [receipt, setReceipt] = useState(null);
   const remaining = remainingForEvent(event, tickets);
   const soldOut = remaining <= 0;
   const evReviews = reviews.filter((r) => r.eventId === event.id);
   const mapQuery = encodeURIComponent(`${event.location}${event.city ? ", " + event.city : ""}`);
 
-<<<<<<< HEAD
   const handleConfirm = async ({ name, email, qty }) => {
     setPurchasing(false);
     setPayError("");
@@ -1981,16 +1913,11 @@ function EventDetailPage({ event, tickets, reviews, relatedEvents, profile, isFa
     }
     setPaying(true);
     const order = {
-=======
-  const handleConfirm = ({ name, email, qty }) => {
-    const created = Array.from({ length: qty }).map(() => ({
->>>>>>> 3f3abb4f3331ef6d0698a901e7103bba21efdc54
       id: uid(),
       eventId: event.id,
       buyerName: name,
       buyerEmail: email,
       buyerUserId: profile ? profile.id : null,
-<<<<<<< HEAD
       qty,
       amount: Number(event.price) * qty,
       currency: "GHS",
@@ -2005,16 +1932,6 @@ function EventDetailPage({ event, tickets, reviews, relatedEvents, profile, isFa
     } finally {
       setPaying(false);
     }
-=======
-      qty: 1,
-      code: ticketCode(event.name),
-      checkedIn: false,
-      purchasedAt: new Date().toISOString(),
-    }));
-    onPurchased(created);
-    setReceipt({ event, tickets: created });
-    setPurchasing(false);
->>>>>>> 3f3abb4f3331ef6d0698a901e7103bba21efdc54
   };
 
   const share = async () => {
@@ -2044,13 +1961,9 @@ function EventDetailPage({ event, tickets, reviews, relatedEvents, profile, isFa
         style={{
           borderRadius: 16,
           padding: "34px 30px",
-<<<<<<< HEAD
           background: event.imageUrl
             ? `linear-gradient(rgba(13,10,26,0.55), rgba(13,10,26,0.75)), url(${event.imageUrl}) center/cover`
             : `radial-gradient(circle at 15% 20%, rgba(108,75,255,0.4), transparent 50%), ${COLORS.inkDeep}`,
-=======
-          background: `radial-gradient(circle at 15% 20%, rgba(108,75,255,0.4), transparent 50%), ${COLORS.inkDeep}`,
->>>>>>> 3f3abb4f3331ef6d0698a901e7103bba21efdc54
           marginBottom: 24,
         }}
       >
@@ -2061,7 +1974,6 @@ function EventDetailPage({ event, tickets, reviews, relatedEvents, profile, isFa
         <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, color: COLORS.mute }}>
           {fmtDate(event.date)} {event.time ? `· ${event.time}` : ""} · {event.location}{event.city ? `, ${event.city}` : ""}
         </div>
-<<<<<<< HEAD
         {organizer && (
           <button
             onClick={() => onOpenOrganizer(event.organizerId)}
@@ -2070,8 +1982,6 @@ function EventDetailPage({ event, tickets, reviews, relatedEvents, profile, isFa
             Hosted by {organizer.display_name} →
           </button>
         )}
-=======
->>>>>>> 3f3abb4f3331ef6d0698a901e7103bba21efdc54
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 28 }}>
@@ -2112,11 +2022,7 @@ function EventDetailPage({ event, tickets, reviews, relatedEvents, profile, isFa
                   cursor: soldOut ? "not-allowed" : "pointer",
                 }}
               >
-<<<<<<< HEAD
                 {soldOut ? "Unavailable" : Number(event.price) > 0 ? "Pay & get tickets" : "Get free tickets"}
-=======
-                {soldOut ? "Unavailable" : "Get tickets"}
->>>>>>> 3f3abb4f3331ef6d0698a901e7103bba21efdc54
               </button>
             </div>
           </Stub>
@@ -2142,7 +2048,6 @@ function EventDetailPage({ event, tickets, reviews, relatedEvents, profile, isFa
       )}
 
       {purchasing && <PurchaseFlow event={event} remaining={remaining} onClose={() => setPurchasing(false)} onConfirm={handleConfirm} />}
-<<<<<<< HEAD
       {paying && (
         <div style={overlayStyle}>
           <div style={{ background: COLORS.paper, borderRadius: 14, padding: "28px 32px", textAlign: "center", maxWidth: 320 }}>
@@ -2164,8 +2069,6 @@ function EventDetailPage({ event, tickets, reviews, relatedEvents, profile, isFa
           </div>
         </div>
       )}
-=======
->>>>>>> 3f3abb4f3331ef6d0698a901e7103bba21efdc54
       {receipt && <TicketReceipt event={receipt.event} tickets={receipt.tickets} onClose={() => setReceipt(null)} />}
     </div>
   );
@@ -2226,7 +2129,6 @@ function MyTickets({ profile, events, tickets }) {
   );
 }
 
-<<<<<<< HEAD
 /* ---------------- Organizer public page ---------------- */
 function OrganizerPage({ organizer, events, tickets, onBack, onOpenEvent }) {
   const today = new Date();
@@ -2343,8 +2245,6 @@ function OrganizerProfileEditor({ profile, onSave }) {
   );
 }
 
-=======
->>>>>>> 3f3abb4f3331ef6d0698a901e7103bba21efdc54
 /* ---------------- App shell ---------------- */
 export default function App() {
   const [tab, setTab] = useState("home");
@@ -2362,11 +2262,8 @@ export default function App() {
   const [reviews, setReviews] = useState([]);
   const [favoriteIds, setFavoriteIds] = useState(new Set());
   const [viewingEventId, setViewingEventId] = useState(null);
-<<<<<<< HEAD
   const [viewingOrganizerId, setViewingOrganizerId] = useState(null);
   const [organizerCache, setOrganizerCache] = useState({});
-=======
->>>>>>> 3f3abb4f3331ef6d0698a901e7103bba21efdc54
   const [browseCategory, setBrowseCategory] = useState("");
 
   const flash = (text, type = "ok") => {
@@ -2460,7 +2357,6 @@ export default function App() {
     })();
   }, [profile]);
 
-<<<<<<< HEAD
   // Lazily fetch + cache whichever organizer's public profile is currently
   // needed — either the "Hosted by" line on an event detail page, or a
   // full organizer page someone navigated to directly.
@@ -2491,8 +2387,6 @@ export default function App() {
     }
   };
 
-=======
->>>>>>> 3f3abb4f3331ef6d0698a901e7103bba21efdc54
   const handleCreate = async (ev) => {
     const withOwner = { ...ev, organizerId: profile ? profile.id : null };
     try {
@@ -2526,7 +2420,6 @@ export default function App() {
       fail(err);
     }
   };
-<<<<<<< HEAD
   // Paid tickets are inserted server-side by the verify-payment Edge
   // Function (it uses the service-role key) — this just syncs local state,
   // no DB write here.
@@ -2546,8 +2439,6 @@ export default function App() {
     }))]);
     flash(`${created.length} ticket${created.length > 1 ? "s" : ""} confirmed.`);
   };
-=======
->>>>>>> 3f3abb4f3331ef6d0698a901e7103bba21efdc54
   const handleAddSubmission = async (s) => {
     try {
       await db.submissions.create(s);
@@ -2571,10 +2462,7 @@ export default function App() {
       category: s.category,
       price: s.price,
       capacity: s.capacity,
-<<<<<<< HEAD
       imageUrl: s.imageUrl,
-=======
->>>>>>> 3f3abb4f3331ef6d0698a901e7103bba21efdc54
       organizerId: s.submittedBy || null,
     };
     try {
@@ -2806,7 +2694,6 @@ export default function App() {
       )}
       {loading ? (
         <div style={{ color: COLORS.paper, textAlign: "center", padding: 80, fontFamily: "'Inter', sans-serif" }}>Loading Dictaz…</div>
-<<<<<<< HEAD
       ) : viewingOrganizerId ? (
         organizerCache[viewingOrganizerId] ? (
           <OrganizerPage
@@ -2822,8 +2709,6 @@ export default function App() {
         ) : (
           <div style={{ color: COLORS.paper, textAlign: "center", padding: 80, fontFamily: "'Inter', sans-serif" }}>Loading organizer…</div>
         )
-=======
->>>>>>> 3f3abb4f3331ef6d0698a901e7103bba21efdc54
       ) : viewingEventId ? (
         (() => {
           const ev = events.find((e) => e.id === viewingEventId);
@@ -2840,18 +2725,12 @@ export default function App() {
               onToggleFavorite={handleToggleFavorite}
               onBack={() => setViewingEventId(null)}
               onPurchased={handlePurchased}
-<<<<<<< HEAD
               onTicketsIssuedByServer={handleTicketsIssuedByServer}
               onAddReview={handleAddReview}
               onOpenRelated={(rev) => setViewingEventId(rev.id)}
               onRequireLogin={requireLogin}
               organizer={ev.organizerId ? organizerCache[ev.organizerId] : null}
               onOpenOrganizer={(id) => setViewingOrganizerId(id)}
-=======
-              onAddReview={handleAddReview}
-              onOpenRelated={(rev) => setViewingEventId(rev.id)}
-              onRequireLogin={requireLogin}
->>>>>>> 3f3abb4f3331ef6d0698a901e7103bba21efdc54
             />
           );
         })()
@@ -2914,11 +2793,8 @@ export default function App() {
               onResetData={handleReset}
               onApproveSubmission={handleApproveSubmission}
               onRejectSubmission={handleRejectSubmission}
-<<<<<<< HEAD
               profile={profile}
               onSaveOrganizerProfile={handleSaveOrganizerProfile}
-=======
->>>>>>> 3f3abb4f3331ef6d0698a901e7103bba21efdc54
             />
           )}
           {tab === "checkin" && profile && (() => {
@@ -2932,3 +2808,5 @@ export default function App() {
     </div>
   );
 }
+
+
